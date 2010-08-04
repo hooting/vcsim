@@ -1,7 +1,7 @@
 package it.polimi.vcdu.test;
 
+import it.polimi.vcdu.exp.Experiment;
 import it.polimi.vcdu.sim.ControlParameters;
-import it.polimi.vcdu.sim.Experiment;
 import it.polimi.vcdu.util.TopologyGenerator;
 
 import java.io.IOException;
@@ -45,6 +45,7 @@ public class testFour {
 	 * @return
 	 */
 	public static Graph<Number, Number> initConfigGraph(int nNodes, int nEdges) {
+
 
 		// Creating the graph
 		Factory<Graph<Number, Number>> fg = new Factory<Graph<Number, Number>>() {
