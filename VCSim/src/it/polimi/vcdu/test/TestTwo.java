@@ -80,7 +80,7 @@ public class TestTwo {
 
 		exp_measuring(conf2,targetedComponent2, RequestTime, ReadyTime);
 		
-		System.exit(0);
+		//System.exit(0);
 	}
 
 	private static void reInit(){
