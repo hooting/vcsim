@@ -132,7 +132,9 @@ public class TestThree  {
 		
 		try {
 			Object[] content = new Object[1];
+			//
 			content[0] = "startReconfWaiting";
+			content[0] = "startReconf";
 
 			Message message = new Message("VersConsPseudoMsg", null, null,
 					content);
