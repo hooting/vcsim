@@ -71,8 +71,9 @@ public class TestThree  {
 //		Logger.getLogger("it.polimi.vcdu.alg").setLevel(Level.WARNING);
 
 		ControlParameters.getCurrentParameters().setMaxVirtualTime(10000f);
+		ControlParameters.getCurrentParameters().setMeanArrival(500);
 
-		int nNodes = 128;
+		int nNodes = 32;
 		int nEdges = 2;
 
 		Graph<Number,Number> configGraph = initConfigGraph(nNodes, nEdges);
@@ -131,7 +132,7 @@ public class TestThree  {
 		
 		try {
 			Object[] content = new Object[1];
-			content[0] = "startReconf";
+			content[0] = "startReconfWaiting";
 
 			Message message = new Message("VersConsPseudoMsg", null, null,
 					content);

@@ -36,6 +36,7 @@ public class VersionConsistency extends Algorithm {
 	private float VersConsistencyReqTime = -1.0f;
 	private boolean startReconf=false;
 	private HashSet<String> FPSet = new HashSet<String>();
+	private boolean waitingInsteadOfBlocking=false;
 
 	@Override
 	protected Logger getLOGGER() {		
@@ -56,11 +57,25 @@ public class VersionConsistency extends Algorithm {
 		
 		checkFreeness(currentEvent);
 	}
-	
+	public void startReconfWaiting(SimEvent currentEvent){
+		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
+				"virtual time "+Engine.getDefault().getVirtualTime());
+		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
+		this.startReconf=true;
+		this.waitingInsteadOfBlocking=true;
+		this.collectReqSettingCallBack.callback(currentEvent, null);
+		getLOGGER().info(
+//				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
+//				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
+				" \n *************** current FPSet : " + FPSet);
+		
+		checkFreeness(currentEvent);
+	}
 	
 	@Override
 	public void onInitRootTx(SimEvent currentEvent, SimAppTx simApp,CallBack callBack) {
-		if (!this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
+	
+		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
 			Transaction tx= simApp.getTransaction();
 			//Setting Up local edges
 			Component host= simApp.getHostComponent();
@@ -222,7 +237,7 @@ public class VersionConsistency extends Algorithm {
 	
 	public void onBeingInitSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {	
 		//Reconfiguration Starts: no new sub transactions accepted
-		if (!this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
+		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
 				
 			
 			getLOGGER().fine("Before callback "+ currentEvent.getId()+
