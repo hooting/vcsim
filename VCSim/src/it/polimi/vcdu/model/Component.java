@@ -20,8 +20,8 @@ public class Component {
 	
 	private String id;
 	
-	private static LocalInPort  localInPort;
-	private static LocalOutPort localOutPort;
+	private final LocalInPort  localInPort;
+	private final LocalOutPort localOutPort;
 
 	private ArrayList<InPort> nonLocalInPorts=new ArrayList<InPort>();
 	private ArrayList<OutPort> nonLocalOutPorts=new ArrayList<OutPort>();
