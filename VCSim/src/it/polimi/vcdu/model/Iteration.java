@@ -116,6 +116,14 @@ public class Iteration {
 	private float blockedTime = 0f;
 	
 	private boolean isWorking = false; // counting workingTime when true; blockedTime when false;
+	/**
+	 * @return the isWorking
+	 */
+	public boolean isWorking() {
+		return isWorking;
+	}
+
+
 	private float lastSwitchTime = -1.0f;
 	
 	// Invariant: workingTime+blockedTime == currentVT - txCreateTime; 
@@ -209,5 +217,10 @@ public class Iteration {
 		return blockedTime;
 	}
 	
-
+	public void setCurrentStepSubTxInitAcked(){
+		list.get(current_step).setSubTxInitAcked(true);
+	}
+	public boolean isCurrentStepSubTxInitAcked(){
+		return list.get(current_step).isSubTxInitAcked();
+	}
 }
