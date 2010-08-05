@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Observable;
 import java.util.Observer;
+import java.util.Set;
 import java.util.logging.Logger;
 
 
@@ -49,10 +50,7 @@ public class VCOnDemand extends Algorithm {
 	
 	private enum DDMngMode{DEFAULT, ONDEMAND, VC}; 
 	private DDMngMode dDMngMode = DDMngMode.DEFAULT;
-	private boolean localSettingUpDone = false;
-	
-	private VersionConsistency vCAlgorithm; //redirect to vCAlgorithm when appropriate 
-	
+		
 	private float vCOndemandReqTime = -1.0f;
 	
 	private ArrayList<Component> vCScope;
@@ -68,15 +66,17 @@ public class VCOnDemand extends Algorithm {
 	// So we need to remember those root tx ids that set up on demand, so that we can know when on demand setting up is ready
 	private HashMap<String,Observable> waitingForEdgeCreateConditionObjs= new HashMap<String, Observable>();
 	private HashSet<String> onDemandPaths = new HashSet<String>();
+	private boolean isLocalSettingUpDone = false; //is setting up for local root edges done?
+	private HashSet<Component> directDependingComponentsToWaitForLocalSettingUpDone; // Once empty this component can swith to VC
+	private HashSet<Component> allDependingComponentsToWaitForLocalSettingUpDone; //for targeted component only.  Once empty, beging to achieving freeness
 	
 	
 	public VCOnDemand(SimContainer simCon) {
 		super(simCon);
-		vCAlgorithm = new VersionConsistency(simCon);
 		dDMngMode  = DDMngMode.DEFAULT;
 	}
 	
-	
+	// I am the targeted component
 	public void onBeingRequestOnDemand(SimEvent currentEvent){
 		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
 		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from"
@@ -85,7 +85,7 @@ public class VCOnDemand extends Algorithm {
 		this.collectReqSettingCallBack.callback(currentEvent, null);
 		Component hostComponent = this.getSimContainer().getHostComponent();
 		ArrayList<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
-		
+		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
 	
@@ -103,9 +103,13 @@ public class VCOnDemand extends Algorithm {
 					this.inScopeOutPorts.add(op);
 				}
 			}
+			
+			directDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>();
 			for(InPort ip: host.getInPorts()){
-				assert this.vCScope.contains(ip.getPeerPort().getHost()); // currently, all in-ports should be in
+				Component peerhost = ip.getPeerPort().getHost();
+				assert this.vCScope.contains(peerhost); // currently, all in-ports should be in
 				this.inScopeInPorts.add(ip);
+				directDependingComponentsToWaitForLocalSettingUpDone.add(peerhost);
 			}
 			//we need to wait for all request from outgoing components in scope, setup the waitng
 			this.requestOnDemandToWait = new ArrayList<OutPort>(inScopeOutPorts);
@@ -143,13 +147,13 @@ public class VCOnDemand extends Algorithm {
 			CallBack callback = new CallBack(getSimContainer()){
 				@Override
 				public void callback(SimEvent currentEvent, Object[] parameters) {
-					checkAndNotifyFinishSetupOD();
+					checkAndNotifyFinishSetupOD(currentEvent);
 				}
 				
 			};
 			setupDynamicEdgesOnDemand(currentEvent, tx,callback);
 		}
-		checkAndNotifyFinishSetupOD();
+		checkAndNotifyFinishSetupOD(currentEvent);
 	}
 	
 	
@@ -276,15 +280,74 @@ public class VCOnDemand extends Algorithm {
 		}
 	}
 	
-	private void checkAndNotifyFinishSetupOD(){
-		assert false : "Fix me!";
+	private void checkAndNotifyFinishSetupOD(SimEvent currentEvent){
+		Set<String> currentPaths = this.waitingForEdgeCreateConditionObjs.keySet();
+		for(String path: currentPaths){
+			if (this.onDemandPaths.contains(path)){ // we are not ready yet.
+				return;
+			}
+		}
+		this.isLocalSettingUpDone = true; // this value does not affect whether this component can switch to VC, but affects depended components
+		
+		// notify depended components through out going components
+		for(OutPort op: this.inScopeOutPorts){
+			Object[] content= new Object[2];
+			content[0]= "notifyOnDemandSettingUpLocalDone";
+			content[1]= this.getSimContainer().getHostComponent();
+			Object[] params= new Object[1];			
+			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+		}	
+		
+		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
+			allDependingComponentsToWaitForLocalSettingUpDone.remove(getSimContainer().getHostComponent());
+			checkAndSwithToReconfig(currentEvent);
+		}
+
+ 	}
+	
+	
+	public void notifyOnDemandSettingUpLocalDone(SimEvent currentEvent, Component theComponent){
+		//Let's pass it down. so that the targeted node can know all the setting up is done and then
+		// begins to block for freeness
+		for(OutPort op: this.inScopeOutPorts){
+			Object[] content= new Object[2];
+			content[0]= "notifyOnDemandSettingUpLocalDone";
+			content[1]= this.getSimContainer().getHostComponent();
+			Object[] params= new Object[1];			
+			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+		}	
+		
+		this.directDependingComponentsToWaitForLocalSettingUpDone.remove(theComponent);
+		checkAndSwitchToVC(currentEvent);
+		
+		
+		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
+			allDependingComponentsToWaitForLocalSettingUpDone.remove(getSimContainer().getHostComponent());
+			checkAndSwithToReconfig(currentEvent);
+		}
 	}
 	
-	
-	
-	
-	
+	private void checkAndSwitchToVC(SimEvent currentEvent){
+		if(this.dDMngMode== DDMngMode.VC){ //we are already in VC
+			return;
+		}
+		if(this.directDependingComponentsToWaitForLocalSettingUpDone.isEmpty() ){
+			// Good, now we can switch to VC
+			this.dDMngMode = DDMngMode.VC;
+			
+			// resume the blocked initing/ending of subtxs
+			for (SimEvent se:this.blockedEventsDueToOnDemandSettingUp){
+				currentEvent.addReferencedEvent(se);
+			}
+		}
+	}
 
+	private void checkAndSwithToReconfig(SimEvent currentEvent){
+		if(this.allDependingComponentsToWaitForLocalSettingUpDone.isEmpty())
+			this.startReconfAfterSettingUpOnDemandReady(currentEvent);
+	}
 
 
 	/**
@@ -334,128 +397,151 @@ public class VCOnDemand extends Algorithm {
 		}
 		return result;
 	}
-//	
-//	
-//	
-//	/**
-//	 * Following is copied from VersionConsistency
-//	 */
-//	
+	
+	
+	
+	/**
+	 * Following is copied from VersionConsistency
+	 */
+	
 //	private HashMap<String,Observable> WaitingForAckFutureCreateCondition= new HashMap<String, Observable>();
 //
 //
 //	private float VersConsistencyReqTime = -1.0f;
-//	private boolean startReconf=false;
-//	private HashSet<String> FPSet = new HashSet<String>();
-//	private boolean waitingInsteadOfBlocking=false;
-//
-//
-//	
-//	public void startReconf(SimEvent currentEvent){
-//		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
-//				"virtual time "+Engine.getDefault().getVirtualTime());
-//		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
-//		this.startReconf=true;
-//		this.collectReqSettingCallBack.callback(currentEvent, null);
+	private boolean startReconf=false;
+	private HashSet<String> FPSet = new HashSet<String>();
+	private boolean waitingInsteadOfBlocking=false;
+
+
+	
+	public void startReconfAfterSettingUpOnDemandReady(SimEvent currentEvent){
+		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
+				"virtual time "+Engine.getDefault().getVirtualTime());
+		
+		this.startReconf=true;
+		//this.collectReqSettingCallBack.callback(currentEvent, null);
 //		getLOGGER().info(
-////				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
-////				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
+//				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
+//				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
 //				" \n *************** current FPSet : " + FPSet);
-//		
-//		checkFreeness(currentEvent);
-//	}
-//	public void startReconfWaiting(SimEvent currentEvent){
-//		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
-//				"virtual time "+Engine.getDefault().getVirtualTime());
-//		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
-//		this.startReconf=true;
-//		this.waitingInsteadOfBlocking=true;
-//		this.collectReqSettingCallBack.callback(currentEvent, null);
+		
+		checkFreeness(currentEvent);
+	}
+	public void startReconfWaitingAfterSettingUpOnDemandReady(SimEvent currentEvent){
+		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
+				"virtual time "+Engine.getDefault().getVirtualTime());
+		this.startReconf=true;
+		this.waitingInsteadOfBlocking=true;
+		//this.collectReqSettingCallBack.callback(currentEvent, null);
 //		getLOGGER().info(
-////				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
-////				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
+//				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
+//				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
 //				" \n *************** current FPSet : " + FPSet);
-//		
-//		checkFreeness(currentEvent);
-//	}
-//	
-//	@Override
-//	public void onInitRootTx(SimEvent currentEvent, SimAppTx simApp,CallBack callBack) {
-//	
-//		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
-//			Transaction tx= simApp.getTransaction();
-//			//Setting Up local edges
-//			Component host= simApp.getHostComponent();
-//			FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),tx.getId());
-//			PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),tx.getId());
-//			host.addToOES(lfe);
-//			host.addToOES(lpe);
-//			host.addToIES(lfe);
-//			host.addToIES(lpe);
-//			
-//			getLOGGER().fine("Before callback "+ currentEvent.getId()+
-//					" At virtual time: "+Engine.getDefault().getVirtualTime() +
-//					"; The root tx: "+tx.getAncestors());		
-//			callBack.callback(currentEvent, null);
-//		}
-//		else{
-//			getLOGGER().fine("*** VersionConsistency algorithm blocks transaction: "+ simApp.getTransaction() + " at VT: " 
-//					+ Engine.getDefault().getVirtualTime());
-//		}
-//	}
-//	@Override
-//	public void onToGoBeforeRootInitFirstSubTx(SimEvent currentEvent,  SimAppTx simApp,CallBack callBack) {
-//		Transaction tx= simApp.getTransaction();
-//		getLOGGER().fine("setting up non local future edges "+ currentEvent.getId()+
-//				" At virtual time: "+Engine.getDefault().getVirtualTime() +
-//				"; The tx: "+tx.getAncestors());
-//		//Setting up non local future edges
-//		Component host =simApp.getHostComponent();
-//		Iterator <OutPort> it =host.f(tx).iterator();
-//		
-//		WaitingForRootAckFutureCreate waitingObj = new WaitingForRootAckFutureCreate(callBack);
-//		waitingObj.addObserver(new Observer(){
-//
-//			@Override
-//			public void update(Observable o, Object arg) {
-//				SimEvent currentEvent = ((WaitingForRootAckFutureCreate)o).getCurrentEvent();
-//				CallBack callBack= ((WaitingForRootAckFutureCreate)o).getCallBack();
-//				callBack.callback(currentEvent, null);				
-//			}
-//			
-//		});
-//		ArrayList<FutureEdge> path= new ArrayList<FutureEdge>();
-//		path.add(host.getLocalFe(tx.getId()));
-//		this.WaitingForAckFutureCreateCondition.put(path.toString(), waitingObj);
-//		while(it.hasNext()){
-//			OutPort op=it.next();
-//			FutureEdge fe= new FutureEdge(op,op.getPeerPort(),tx.getId());
-//			host.addToOES(fe);
-//			waitingObj.toWait(fe);	
-//			ArrayList<FutureEdge> pathToSend=new ArrayList<FutureEdge>(path);
-//			pathToSend.add(fe);
-//			Object[] content= new Object[2];
-//			content[0]= "notifyFutureCreate";
-//			content[1]= pathToSend;
-//			Object[] params= new Object[1];			
-//			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-//			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
-//		}	
-//		waitingObj.setCurrentEvent(currentEvent);
-//		waitingObj.checkAndNotify();
-//		
-//	
-//		getLOGGER().fine("we are waiting for acks of future edge creation from ports: "+ host.f(tx)+
-//				" At virtual time: "+Engine.getDefault().getVirtualTime() +
-//				"; The tx: "+tx.getAncestors());
-//	}
-//	
+		
+		checkFreeness(currentEvent);
+	}
+	
+	@Override
+	public void onInitRootTx(SimEvent currentEvent, SimAppTx simApp,CallBack callBack) {
+		if(this.dDMngMode==DDMngMode.DEFAULT){
+			assert ! startReconf;
+			assert ! waitingInsteadOfBlocking;
+			super.onInitRootTx(currentEvent, simApp, callBack);
+			return;
+		}
+		
+		//For both DDMngMode.ONDEMAND and DDMngMode.VC, we do the same as VersionConsistency but 
+		//with considerations of scope
+		
+		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
+			Transaction tx= simApp.getTransaction();
+			//Setting Up local edges
+			Component host= simApp.getHostComponent();
+			FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),tx.getId());
+			PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),tx.getId());
+			host.addToOES(lfe);
+			host.addToOES(lpe);
+			host.addToIES(lfe);
+			host.addToIES(lpe);
+			
+			getLOGGER().fine("Before callback "+ currentEvent.getId()+
+					" At virtual time: "+Engine.getDefault().getVirtualTime() +
+					"; The root tx: "+tx.getAncestors());		
+			callBack.callback(currentEvent, null);
+		}
+		else{
+			getLOGGER().fine("*** VersionConsistency algorithm blocks transaction: "+ simApp.getTransaction() + " at VT: " 
+					+ Engine.getDefault().getVirtualTime());
+		}
+	}
+	@Override
+	public void onToGoBeforeRootInitFirstSubTx(SimEvent currentEvent,  SimAppTx simApp,CallBack callBack) {
+		if(this.dDMngMode==DDMngMode.DEFAULT){
+			assert ! startReconf;
+			assert ! waitingInsteadOfBlocking;
+			super.onToGoBeforeRootInitFirstSubTx(currentEvent, simApp, callBack);
+			return;
+		}
+		
+		//For both DDMngMode.ONDEMAND and DDMngMode.VC, we do the same as VersionConsistency but 
+		//with considerations of scope
+		
+		Transaction tx= simApp.getTransaction();
+		getLOGGER().fine("setting up non local future edges "+ currentEvent.getId()+
+				" At virtual time: "+Engine.getDefault().getVirtualTime() +
+				"; The tx: "+tx.getAncestors());
+		//Setting up non local future edges
+		Component host =simApp.getHostComponent();
+		Iterator <OutPort> it =host.f(tx).iterator();
+		
+		WaitingForRootAckFutureCreate waitingObj = new WaitingForRootAckFutureCreate(callBack);
+		waitingObj.addObserver(new Observer(){
+
+			@Override
+			public void update(Observable o, Object arg) {
+				SimEvent currentEvent = ((WaitingForRootAckFutureCreate)o).getCurrentEvent();
+				CallBack callBack= ((WaitingForRootAckFutureCreate)o).getCallBack();
+				callBack.callback(currentEvent, null);				
+			}
+			
+		});
+		ArrayList<FutureEdge> path= new ArrayList<FutureEdge>();
+		path.add(host.getLocalFe(tx.getId()));
+		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
+		while(it.hasNext()){ // we need to consider the scope
+			OutPort op=it.next();
+			assert this.inScopeOutPorts!=null;
+			if (inScopeOutPorts.contains(op)){
+				FutureEdge fe= new FutureEdge(op,op.getPeerPort(),tx.getId());
+				host.addToOES(fe);
+				waitingObj.toWait(fe);	
+				ArrayList<FutureEdge> pathToSend=new ArrayList<FutureEdge>(path);
+				pathToSend.add(fe);
+				Object[] content= new Object[2];
+				content[0]= "notifyFutureCreate";
+				content[1]= pathToSend;
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
+				getLOGGER().fine("we are waiting for acks of future edge creation from edge: "+ fe +
+						" At virtual time: "+Engine.getDefault().getVirtualTime() +
+						"; The tx: "+tx.getAncestors());
+			}
+		}	
+		waitingObj.setCurrentEvent(currentEvent);
+		waitingObj.checkAndNotify();
+
+	}
+	
 	/**
 	 * Some depending neighbor notifies me that it creates a future edge to me.
 	 * @param currentEvent
 	 * @param path
 	 */
 	public void notifyFutureCreate(SimEvent currentEvent, ArrayList<FutureEdge> path){
+		assert this.vCScope.contains(this.getSimContainer().getHostComponent());
+		assert this.dDMngMode != DDMngMode.DEFAULT;
+		
 		getLOGGER().fine("Being notified a non local future edge to me is created. At virtual time: "
 				+Engine.getDefault().getVirtualTime() + "; The path: "+path);
 		assert !this.vCScope.isEmpty();
@@ -482,7 +568,8 @@ public class VCOnDemand extends Algorithm {
 		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
 		for (OutPort op: host.f()){
 			Component peerhost = op.getPeerPort().getHost();
-			if(this.vCScope.contains(peerhost)){
+			if(this.vCScope.contains(peerhost)){ // we need to consider the scope
+				assert this.inScopeOutPorts.contains(op);
 				FutureEdge fe= new FutureEdge(op,op.getPeerPort(),xe.getRid());
 				host.addToOES(fe);
 				waitingObj.toWait(fe);	
@@ -494,17 +581,20 @@ public class VCOnDemand extends Algorithm {
 				Object[] params= new Object[1];			
 				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
 				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+
+				getLOGGER().fine("we are waiting for ack of future edge creation from edge: "+ fe+
+						" At virtual time: "+Engine.getDefault().getVirtualTime() +
+						"; The path: "+path);
 			}
 		}
 		waitingObj.setCurrentEvent(currentEvent);
 		waitingObj.checkAndNotify();
 		
-		getLOGGER().fine("we are waiting for acks of future edge creation from ports: "+ host.f()+
-				" At virtual time: "+Engine.getDefault().getVirtualTime() +
-				"; The path: "+path);
 	}
 	
 	public void ackFutureCreate(SimEvent currentEvent, ArrayList<FutureEdge> path){
+		assert this.vCScope.contains(this.getSimContainer().getHostComponent());
+		assert this.dDMngMode != DDMngMode.DEFAULT;
 
 		getLOGGER().fine("Ack of non local future edge creation received of path: "+ path+
 				" At virtual time: "+Engine.getDefault().getVirtualTime() );
@@ -571,33 +661,32 @@ public class VCOnDemand extends Algorithm {
 				Object[] params= new Object[1];			
 				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
 				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				getLOGGER().fine("we are waiting for acks of past edge on demand creation from port: "+ op+
+						" At virtual time: "+Engine.getDefault().getVirtualTime() +
+						"; The path: "+path);
 			}
 		}
 		waitingObj.setCurrentEvent(currentEvent);
 		waitingObj.checkAndNotify();
-		
-		getLOGGER().fine("we are waiting for acks of future edge creation from ports: "+ host.f()+
-				" At virtual time: "+Engine.getDefault().getVirtualTime() +
-				"; The path: "+path);
 	}
 	
-	public void ackFutureCreate(SimEvent currentEvent, ArrayList<FutureEdge> path){
+	public void ackPastCreateDD(SimEvent currentEvent, ArrayList<PastEdge> path){
 
 		getLOGGER().fine("Ack of non local future edge creation received of path: "+ path+
 				" At virtual time: "+Engine.getDefault().getVirtualTime() );
 		
 		assert path.size()>1;
-		FutureEdge fe=path.get(path.size()-1);
+		PastEdge fe=path.get(path.size()-1);
 		path.remove(fe);
 		Observable o=this.waitingForEdgeCreateConditionObjs.get(path.toString());
 		assert o!=null;
 		if (path.size()==1){
-			WaitingForRootAckFutureCreate waitingObj=(WaitingForRootAckFutureCreate)o;			 
+			WaitingForRootAckPastCreateOD waitingObj=(WaitingForRootAckPastCreateOD)o;			 
 			waitingObj.ackReceived(currentEvent, fe);
 		}
 		else{
 			
-			WaitingForSubAckFutureCreate waitingObj=(WaitingForSubAckFutureCreate)o;			 
+			WaitingForSubAckPastCreateOD waitingObj=(WaitingForSubAckPastCreateOD)o;			 
 			waitingObj.ackReceived(currentEvent, fe);
 		}
 		
@@ -605,27 +694,28 @@ public class VCOnDemand extends Algorithm {
 		
 	
 	
-//
-//	/*
-//	 * Progressing step
-//	 */
-//	private void removeFutureEdges (SimEvent currentEvent, String rid){
-//		Component host= this.getSimContainer().getHostComponent();
-//		for (FutureEdge fe: host.getNonLocalFeFromOES(rid)){
-//			OutPort op=fe.getFrom();
-//			if(  host.getNonLocalFeFromIES(rid).isEmpty()  && host.getLocalTransactionsWithRootRidAndPortOp(rid, op).isEmpty() ){
-//				host.removeFromOES(fe);
-//				Object[] content= new Object[2];
-//				content[0]= "notifyFutureRemove";
-//				content[1]=fe;
-//				Object[] params= new Object[1];			
-//				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-//				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
-//			}			
-//		}
-//	}
-//	
-//	public void onBeingInitSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {	
+
+	/*
+	 * Progressing step
+	 */
+	private void removeFutureEdges (SimEvent currentEvent, String rid){
+		Component host= this.getSimContainer().getHostComponent();
+		for (FutureEdge fe: host.getNonLocalFeFromOES(rid)){
+			OutPort op=fe.getFrom();
+			if(  host.getNonLocalFeFromIES(rid).isEmpty()  && host.getLocalTransactionsWithRootRidAndPortOp(rid, op).isEmpty() ){
+				host.removeFromOES(fe);
+				Object[] content= new Object[2];
+				content[0]= "notifyFutureRemove";
+				content[1]=fe;
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+			}			
+		}
+	}
+	
+	// this method is going to be blocked.
+/	public void onBeingInitSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {	
 //		//Reconfiguration Starts: no new sub transactions accepted
 //		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
 //				
@@ -808,59 +898,53 @@ public class VCOnDemand extends Algorithm {
 //		}
 //	}	
 //	
-//	public void checkFreeness(SimEvent currentEvent){
-//		
-//		assert this.startReconf;
-//		//populating the FSet and the PSet
-//		HashSet <String> FSet= new HashSet<String>();
-//		HashSet <String> PSet= new HashSet<String>();
-//		Component hostComponent = this.getSimContainer().getHostComponent();
-//		HashSet <DynamicEdge> IES =hostComponent.getIES();
-//		
-//		for (DynamicEdge edge :IES){	
-//			if (edge instanceof FutureEdge){
-//				
-//				// we inserted to FSet its RID
-//				FSet.add(edge.getRid());
-//			}
-//			else if(edge instanceof PastEdge){
-//				
-//				// we inserted to PSet its RID
-//				PSet.add(edge.getRid());
-//			}					
-//		}
-//
-//		//Create the intersection between FSet and PSet
-//		FPSet.clear();
-//		for (String ridInFSet :FSet){
-//			if (PSet.contains(ridInFSet)){
-//				FPSet.add(ridInFSet);
-//			}
-//		}
-//		//Check
-//		if (FPSet.isEmpty()){
-//			LOGGER.info("*** Freeness achieved for component "
-//					+ this.getSimContainer().getHostComponent().getId()
-//					+ " at VT: "+Engine.getDefault().getVirtualTime()
-//					+"! ***");
-//			this.collectResultCallBack.callback(currentEvent, null);
-//			
-//
-//			//debugging purpose
-//			//System.exit(0);
-//		}
-//
-//		getLOGGER().info(
-////				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
-////				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
-//				" \n *************** current FPSet : " + FPSet
-//				+ " \nvirtual time "+Engine.getDefault().getVirtualTime());
-//			
-//		
-//		
-//	}
-//	//
-//
+	public void checkFreeness(SimEvent currentEvent){
+		assert this.startReconf;
+		//populating the FSet and the PSet
+		HashSet <String> FSet= new HashSet<String>();
+		HashSet <String> PSet= new HashSet<String>();
+		Component hostComponent = this.getSimContainer().getHostComponent();
+		HashSet <DynamicEdge> IES =hostComponent.getIES();
+		
+		for (DynamicEdge edge :IES){	
+			if (edge instanceof FutureEdge){
+				// we inserted to FSet its RID
+				FSet.add(edge.getRid());
+			}
+			else if(edge instanceof PastEdge){
+				// we inserted to PSet its RID
+				PSet.add(edge.getRid());
+			}					
+		}
+
+		//Create the intersection between FSet and PSet
+		FPSet.clear();
+		for (String ridInFSet :FSet){
+			if (PSet.contains(ridInFSet)){
+				FPSet.add(ridInFSet);
+			}
+		}
+		//Check
+		if (FPSet.isEmpty()){
+			LOGGER.info("*** Freeness achieved for component "
+					+ this.getSimContainer().getHostComponent().getId()
+					+ " at VT: "+Engine.getDefault().getVirtualTime()
+					+"! ***");
+			this.collectResultCallBack.callback(currentEvent, null);
+			
+			//debugging purpose
+			//System.exit(0);
+		}
+
+		getLOGGER().info(
+//				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
+//				+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
+				" \n *************** current FPSet : " + FPSet
+				+ " \nvirtual time "+Engine.getDefault().getVirtualTime());
+		
+	}
+	//
+
 	//inner classes
 	private class WaitingForRootAckFutureCreate extends Observable{		
 		private HashSet <FutureEdge>fEdgesToAck;
@@ -892,7 +976,10 @@ public class VCOnDemand extends Algorithm {
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();		
+			if (conditionCheck()) {
+				VCOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				this.notifyObservers();		
+			}
 		}
 		/**
 		 * @param currentEvent the currentEvent to set
@@ -944,7 +1031,10 @@ public class VCOnDemand extends Algorithm {
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();		
+			if (conditionCheck()) {
+				VCOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				this.notifyObservers();		
+			}		
 		}
 		/**
 		 * @param currentEvent the currentEvent to set
@@ -986,7 +1076,10 @@ public class VCOnDemand extends Algorithm {
 			this.currentEvent=currentEvent;
 			this.fEdgesToAck.remove(fe);
 			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();			
+			if (conditionCheck()) {
+				VCOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				this.notifyObservers();		
+			}		
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
@@ -1037,7 +1130,10 @@ public class VCOnDemand extends Algorithm {
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();		
+			if (conditionCheck()) {
+				VCOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				this.notifyObservers();		
+			}	
 		}
 	
 		/**
@@ -1060,5 +1156,19 @@ public class VCOnDemand extends Algorithm {
 		}	
 			
 	}
+	
+	private void removeFromWaitingForEdgeCreateConditionObjs(Observable observable){
+		//assert this.waitingForEdgeCreateConditionObjs.containsValue(observer);
+		String key = null;
+		for(String s : waitingForEdgeCreateConditionObjs.keySet()){
+			if (waitingForEdgeCreateConditionObjs.get(s) == observable) {
+				key =s;
+				break;
+			}
+		}
+		assert key!=null;
+		waitingForEdgeCreateConditionObjs.remove(key);
+	}
+	
 	
 }
