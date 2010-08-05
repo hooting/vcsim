@@ -131,7 +131,7 @@ public class VCOnDemand extends Algorithm {
 		
 	private void switchToONDEMAND(SimEvent currentEvent){
 		LOGGER.info("*** Component: "+ this.getSimContainer().getHostComponent().getId() 
-				+ "swith to ONDEMAND at VT: "+vCOndemandReqTime +" ***");
+				+ "swith to ONDEMAND at VT: "+Engine.getDefault().getVirtualTime() +" ***");
 		
 		this.dDMngMode = DDMngMode.ONDEMAND;
 		
@@ -143,16 +143,18 @@ public class VCOnDemand extends Algorithm {
 			this.reqOnDemand(currentEvent, ip);
 		}
 		
-		// setting up edges for all ongoing transactions
+		// setting up edges for all ongoing transactions, now we only need to consider root txs, 
 		for (Transaction tx : this.getSimContainer().getHostComponent().getLocalTransactions()){
-			CallBack callback = new CallBack(getSimContainer()){
-				@Override
-				public void callback(SimEvent currentEvent, Object[] parameters) {
-					checkAndNotifyFinishSetupOD(currentEvent);
-				}
-				
-			};
-			setupDynamicEdgesOnDemand(currentEvent, tx,callback);
+			if(tx.isRoot()){
+				CallBack callback = new CallBack(getSimContainer()){
+					@Override
+					public void callback(SimEvent currentEvent, Object[] parameters) {
+						checkAndNotifyFinishSetupOD(currentEvent);
+					}
+					
+				};
+				setupDynamicEdgesOnDemand(currentEvent, tx,callback);
+			}
 		}
 		checkAndNotifyFinishSetupOD(currentEvent);
 	}
@@ -188,14 +190,14 @@ public class VCOnDemand extends Algorithm {
 			host.addToIES(lpe);
 			
 			//Setting up non local future edges. first decide the corresponding outports.
-			ArrayList<OutPort> futures = new ArrayList<OutPort>();
+			HashSet<OutPort> futures = new HashSet<OutPort>();
 			for(int i=tx.getIteration().getCurrent_step();i<tx.getIteration().getList().size()-1; i++) {
 				OutPort outPort = tx.getIteration().getList().get(i).getOutPort();
 				if(this.inScopeOutPorts.contains(outPort)){
 					futures.add(outPort);
 				}
 			};
-			ArrayList<OutPort> pasts = new ArrayList<OutPort>();
+			HashSet<OutPort> pasts = new HashSet<OutPort>();
 			for(int i=1;i<tx.getIteration().getCurrent_step();i++) {
 				OutPort outPort = tx.getIteration().getList().get(i).getOutPort();
 				if(this.inScopeOutPorts.contains(outPort)){
@@ -492,6 +494,8 @@ public class VCOnDemand extends Algorithm {
 		//with considerations of scope
 		
 		Transaction tx= simApp.getTransaction();
+		assert tx.isRoot();
+		
 		getLOGGER().fine("setting up non local future edges "+ currentEvent.getId()+
 				" At virtual time: "+Engine.getDefault().getVirtualTime() +
 				"; The tx: "+tx.getAncestors());
