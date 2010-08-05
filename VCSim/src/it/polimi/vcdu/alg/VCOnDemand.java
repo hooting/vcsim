@@ -1,5 +1,6 @@
 package it.polimi.vcdu.alg;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -59,7 +60,7 @@ public class VCOnDemand extends Algorithm {
 	private ArrayList<OutPort> inScopeOutPorts = new ArrayList<OutPort>();
 	private ArrayList<InPort> inScopeInPorts = new ArrayList<InPort>();
 	
-	private ArrayList<SimEvent> blockedEventsDueToOnDemandSettingUp = new ArrayList<SimEvent>();
+	private ArrayList<DeferredMethod> blockedMethodsDueToOnDemandSettingUp = new ArrayList<DeferredMethod>();
 	
 	// OnDemandWaitingForAckEdgeCreateCondition repository also includes those waiting condidtion objects for 
 	// normal setting up of f edges for new root txs.
@@ -338,8 +339,12 @@ public class VCOnDemand extends Algorithm {
 			this.dDMngMode = DDMngMode.VC;
 			
 			// resume the blocked initing/ending of subtxs
-			for (SimEvent se:this.blockedEventsDueToOnDemandSettingUp){
-				currentEvent.addReferencedEvent(se);
+			for (DeferredMethod dm:this.blockedMethodsDueToOnDemandSettingUp){
+				Object[] params = dm.getParams();
+				assert params[0] instanceof SimEvent;
+				params[0] = currentEvent;
+				dm.setParams(params); //not necessary but ...
+				dm.run();
 			}
 		}
 	}
@@ -714,180 +719,223 @@ public class VCOnDemand extends Algorithm {
 		}
 	}
 	
-	// this method is going to be blocked.
-/	public void onBeingInitSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {	
-//		//Reconfiguration Starts: no new sub transactions accepted
-//		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
-//				
-//			
-//			getLOGGER().fine("Before callback "+ currentEvent.getId()+
-//					" At virtual time: "+Engine.getDefault().getVirtualTime() +
-//					"; The tx: "+simApp.getTransaction().getAncestors());
-//			
-//			//Setting Up local edges
-//			Component host= simApp.getTransaction().getHost();
-//			FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),simApp.getTransaction().getRootId());
-//			PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),simApp.getTransaction().getRootId());
-//			host.addToOES(lfe);
-//			host.addToOES(lpe);
-//			host.addToIES(lfe);
-//			host.addToIES(lpe);
-//			
-//			Object[] content= new Object[2];
-//			content[0]= "ackSubTxInit";
-//			content[1]=simApp.getTransaction().getRootId();
-//			Object[] params= new Object[1];
-//			//retrieve the parent ouport from the simApp
-//			OutPort xop= (OutPort)simApp.getInitiatingMessage().getSource();
-//			params[0]=new Message("dispatchToAlg",xop.getPeerPort(),xop,content);				
-//			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
-//			
-//		
-//			callBack.callback(currentEvent, null);
-//		}
-//		else{
-//			getLOGGER().fine("*** VersionConsistency algorithm blocks transaction: "+ simApp.getTransaction() + " at VT: " 
-//					+ Engine.getDefault().getVirtualTime());
-//		}
-//	}
-//	public void ackSubTxInit(SimEvent currentEvent, String rid){
-//		this.removeFutureEdges(currentEvent, rid);
-//	}
-//	
-//	public void notifyFutureRemove(SimEvent currentEvent, FutureEdge fe ){
-//		String rid= fe.getRid();
-//		Component host= this.getSimContainer().getHostComponent();
-//		host.removeFromIES(fe);
-//		this.removeFutureEdges(currentEvent, rid);
-//		if(this.startReconf ){
-//			checkFreeness(currentEvent);
-//		}
-//	}	
-//	
-//	/*public void onEndingSubTx(SimEvent currentEvent, SimAppTx simApp,
-//			CallBack callBack) {
-//		getLOGGER().fine("Before callback "+ currentEvent.getId()+
-//				" At virtual time: "+Engine.getDefault().getVirtualTime() +
-//				"; The tx: "+simApp.getTransaction().getAncestors());
-//		
-//		//retrieve the parent ouport from the simApp
-//		OutPort xop= (OutPort)simApp.getInitiatingMessage().getSource();
-//		//this part can be optimized
-//		Object[] content= new Object[2];
-//		content[0]= "onBeingEndingTx";
-//		content[1]=simApp.getTransaction().getAncestors();
-//		
-//		Object[] params= new Object[1];
-//
-//		params[0]=new Message("dispatchToAlg",xop.getPeerPort(),xop,content);				
-//		currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
-//		callBack.callback(currentEvent, null);
-//		
-//	}
-//*/
-//	public void onBeingEndingTx(SimEvent currentEvent,SimAppTx simApp,OutPort op, CallBack callBack) {
-//		PastEdge pe = new PastEdge(op,op.getPeerPort(),simApp.getTransaction().getRootId());
-//		this.getSimContainer().getHostComponent().addToOES(pe);
-//		Object[] content= new Object[2];
-//		content[0]= "notifyPastCreate";
-//		content[1]=pe;
-//		
-//		Object[] params= new Object[1];
-//
-//		params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-//		currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
-//
-//		
-//		callBack.callback(currentEvent, null);
-//	}
-//	
-//	/*public void notifySubTxEnd(SimEvent currentEvent,OutPort op,String rid){
-//		PastEdge pe = new PastEdge(op,op.getPeerPort(),rid);
-//		this.getSimContainer().getHostComponent().addToOES(pe);
-//		Object[] content= new Object[2];
-//		content[0]= "notifyPastCreate";
-//		content[1]=pe;
-//		
-//		Object[] params= new Object[1];
-//
-//		params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-//		currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
-//		
-//	}*/
-//	
-//	public void notifyPastCreate(SimEvent currentEvent, PastEdge pe){
-//		this.getSimContainer().getHostComponent().addToIES(pe);
-//		Component host= this.getSimContainer().getHostComponent();
-//		if (host.getLocalTransactionsWithRootRid(pe.getRid()).isEmpty()){
-//			FutureEdge lfe=host.getLocalFe(pe.getRid());
-//			PastEdge lpe =host.getLocalPe(pe.getRid());
-//			host.removeFromOES(lfe);
-//			host.removeFromOES(lpe);
-//			host.removeFromIES(lfe);
-//			host.removeFromIES(lpe);
-//		}
-//
-//		this.removeFutureEdges(currentEvent, pe.getRid());
-//		if (this.startReconf){
-//			checkFreeness(currentEvent);
-//		}
-//	}
-//	
-//	/*
-//	 * Cleaning-up step
-//	 */
-//	
-//	private void removeAllEdges(SimEvent currentEvent,String rid){
-//		Component host= this.getSimContainer().getHostComponent();
-//		HashSet<DynamicEdge> tempOES=new HashSet<DynamicEdge>(host.getOES());
-//		for(DynamicEdge edge:tempOES){
-//			if (edge.getRid().equals(rid)){
-//			host.removeFromOES(edge);
-//				if ((!(edge.getTo().equals(host.getLocalInPort())))  &&(edge instanceof FutureEdge)){
-//					Object[] content= new Object[2];
-//					content[0]= "notifyFutureRemove";
-//					content[1]=edge;
-//					Object[] params= new Object[1];		
-//					OutPort op=edge.getFrom();
-//					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-//					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
-//				}
-//				
-//				else if ((!(edge.getTo().equals(host.getLocalInPort())))  &&(edge instanceof PastEdge)){
-//					Object[] content= new Object[2];
-//					content[0]= "notifyPastRemove";
-//					content[1]=edge;
-//					Object[] params= new Object[1];	
-//					OutPort op=edge.getFrom();
-//					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-//					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
-//				}
-//			}
-//		}		
-//	}
-//	public void onEndingRootTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {
-//		getLOGGER().fine("Before callback "+ currentEvent.getId()+
-//				" At virtual time: "+Engine.getDefault().getVirtualTime() +
-//				"; The tx: "+simApp.getTransaction().getAncestors());
-//		
-//		Component host= this.getSimContainer().getHostComponent();
-//		String rid=simApp.getTransaction().getId();
-//		FutureEdge lfe =host.getLocalFe(rid);
-//		PastEdge   lpe =host.getLocalPe(rid);
-//		host.removeFromOES(lfe);
-//		host.removeFromOES(lpe);		
-//		host.removeFromIES(lfe);
-//		host.removeFromIES(lpe);
-//		this.removeAllEdges(currentEvent, rid);
-//		
-//
-//		callBack.callback(currentEvent, null);
-//		
-//		if (this.startReconf){
-//			checkFreeness(currentEvent);
-//		}
-//	}
-//	
+	// this method is going to be blocked, and resumed when switching to VC
+	public void onBeingInitSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {	
+		
+		if(this.dDMngMode==DDMngMode.DEFAULT){
+			assert ! startReconf;
+			assert ! waitingInsteadOfBlocking;
+			super.onBeingInitSubTx(currentEvent, simApp, callBack);
+			return;
+		}else if (this.dDMngMode==DDMngMode.ONDEMAND){
+			Object[] params = new Object[3];
+			params[0] = null; // currentEvent to be set later when called;
+			params[1] = simApp;
+			params[2] = callBack;
+			DeferredMethod dm = new DeferredMethod(this, "onBeingInitSubTx", params);
+			this.blockedMethodsDueToOnDemandSettingUp.add(dm);
+			return;
+		}
+		
+		assert this.dDMngMode==DDMngMode.VC;
+		
+		//Reconfiguration Starts: no new sub transactions with new rid accepted
+		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
+				
+			
+			getLOGGER().fine("Before callback "+ currentEvent.getId()+
+					" At virtual time: "+Engine.getDefault().getVirtualTime() +
+					"; The tx: "+simApp.getTransaction().getAncestors());
+			
+			//Setting Up local edges
+			Component host= simApp.getTransaction().getHost();
+			FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),simApp.getTransaction().getRootId());
+			PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),simApp.getTransaction().getRootId());
+			host.addToOES(lfe);
+			host.addToOES(lpe);
+			host.addToIES(lfe);
+			host.addToIES(lpe);
+			
+			Object[] content= new Object[2];
+			content[0]= "ackSubTxInit";
+			content[1]=simApp.getTransaction().getRootId();
+			Object[] params= new Object[1];
+			//retrieve the parent ouport from the simApp
+			OutPort xop= (OutPort)simApp.getInitiatingMessage().getSource();
+			params[0]=new Message("dispatchToAlg",xop.getPeerPort(),xop,content);				
+			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+			
+		
+			callBack.callback(currentEvent, null);
+		}
+		else{
+			getLOGGER().fine("*** VersionConsistency algorithm blocks transaction: "+ simApp.getTransaction() + " at VT: " 
+					+ Engine.getDefault().getVirtualTime());
+		}
+	}
+	
+	public void ackSubTxInit(SimEvent currentEvent, String rid){
+		assert this.dDMngMode!=DDMngMode.DEFAULT;
+		this.removeFutureEdges(currentEvent, rid);
+	}
+	
+	public void notifyFutureRemove(SimEvent currentEvent, FutureEdge fe ){
+		assert this.dDMngMode!=DDMngMode.DEFAULT;
+		String rid= fe.getRid();
+		Component host= this.getSimContainer().getHostComponent();
+		host.removeFromIES(fe);
+		this.removeFutureEdges(currentEvent, rid);
+		if(this.startReconf ){
+			checkFreeness(currentEvent);
+		}
+	}	
+	
+	// we also need to block this method when ONDEMAND
+	public void onEndingSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {
+		if(this.dDMngMode==DDMngMode.DEFAULT){
+			assert ! startReconf;
+			assert ! waitingInsteadOfBlocking;
+			super.onEndingSubTx(currentEvent, simApp, callBack);
+			return;
+		}else if (this.dDMngMode==DDMngMode.ONDEMAND){
+			Object[] params = new Object[3];
+			params[0] = null; // currentEvent to be set later when called;
+			params[1] = simApp;
+			params[2] = callBack;
+			DeferredMethod dm = new DeferredMethod(this, "onEndingSubTx", params);
+			this.blockedMethodsDueToOnDemandSettingUp.add(dm);
+			return;
+		}
+		assert this.dDMngMode==DDMngMode.VC;
+		super.onEndingSubTx(currentEvent, simApp, callBack);
+	}
+
+	public void onBeingEndingTx(SimEvent currentEvent,SimAppTx simApp,OutPort op, CallBack callBack) {
+		if(this.dDMngMode==DDMngMode.DEFAULT){
+			super.onBeingEndingTx(currentEvent, simApp, op, callBack);
+			return;
+		}else{
+			if(this.inScopeOutPorts.contains(op)){
+				PastEdge pe = new PastEdge(op,op.getPeerPort(),simApp.getTransaction().getRootId());
+				this.getSimContainer().getHostComponent().addToOES(pe);
+				Object[] content= new Object[2];
+				content[0]= "notifyPastCreate";
+				content[1]=pe;
+				
+				Object[] params= new Object[1];
+		
+				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
+		
+				
+				callBack.callback(currentEvent, null);
+			}else{
+				super.onBeingEndingTx(currentEvent, simApp, op, callBack);
+			}
+		}
+	}
+	
+	/*public void notifySubTxEnd(SimEvent currentEvent,OutPort op,String rid){
+		PastEdge pe = new PastEdge(op,op.getPeerPort(),rid);
+		this.getSimContainer().getHostComponent().addToOES(pe);
+		Object[] content= new Object[2];
+		content[0]= "notifyPastCreate";
+		content[1]=pe;
+		
+		Object[] params= new Object[1];
+
+		params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+		currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+		
+	}*/
+	
+	public void notifyPastCreate(SimEvent currentEvent, PastEdge pe){
+		assert this.dDMngMode!=DDMngMode.DEFAULT;
+		
+		this.getSimContainer().getHostComponent().addToIES(pe);
+		Component host= this.getSimContainer().getHostComponent();
+		if (host.getLocalTransactionsWithRootRid(pe.getRid()).isEmpty()){
+			FutureEdge lfe=host.getLocalFe(pe.getRid());
+			PastEdge lpe =host.getLocalPe(pe.getRid());
+			host.removeFromOES(lfe);
+			host.removeFromOES(lpe);
+			host.removeFromIES(lfe);
+			host.removeFromIES(lpe);
+		}
+
+		this.removeFutureEdges(currentEvent, pe.getRid());
+		if (this.startReconf){
+			checkFreeness(currentEvent);
+		}
+	}
+	
+	/*
+	 * Cleaning-up step
+	 */
+	
+	private void removeAllEdges(SimEvent currentEvent,String rid){
+		assert this.dDMngMode!=DDMngMode.DEFAULT;
+		Component host= this.getSimContainer().getHostComponent();
+		HashSet<DynamicEdge> tempOES=new HashSet<DynamicEdge>(host.getOES());
+		for(DynamicEdge edge:tempOES){
+			if (edge.getRid().equals(rid)){
+			host.removeFromOES(edge);
+				if ((!(edge.getTo().equals(host.getLocalInPort())))  &&(edge instanceof FutureEdge)){
+					Object[] content= new Object[2];
+					content[0]= "notifyFutureRemove";
+					content[1]=edge;
+					Object[] params= new Object[1];		
+					OutPort op=edge.getFrom();
+					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				}
+				
+				else if ((!(edge.getTo().equals(host.getLocalInPort())))  &&(edge instanceof PastEdge)){
+					Object[] content= new Object[2];
+					content[0]= "notifyPastRemove";
+					content[1]=edge;
+					Object[] params= new Object[1];	
+					OutPort op=edge.getFrom();
+					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				}
+			}
+		}		
+	}
+	
+	// we should also delay this method
+	public void onEndingRootTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {
+		if(this.dDMngMode==DDMngMode.DEFAULT){
+			super.onEndingRootTx(currentEvent, simApp, callBack);
+			return;
+		}else if(this.dDMngMode==DDMngMode.ONDEMAND){
+			Object[] params = new Object[3];
+			params[0] = null; // currentEvent to be set later when called;
+			params[1] = simApp;
+			params[2] = callBack;
+			DeferredMethod dm = new DeferredMethod(this, "onEndingRootTx", params);
+			this.blockedMethodsDueToOnDemandSettingUp.add(dm);
+			return;
+		}
+		assert dDMngMode==DDMngMode.VC;
+		Component host= this.getSimContainer().getHostComponent();
+		String rid=simApp.getTransaction().getId();
+		FutureEdge lfe =host.getLocalFe(rid);
+		PastEdge   lpe =host.getLocalPe(rid);
+		host.removeFromOES(lfe);
+		host.removeFromOES(lpe);		
+		host.removeFromIES(lfe);
+		host.removeFromIES(lpe);
+		this.removeAllEdges(currentEvent, rid);
+		
+
+		callBack.callback(currentEvent, null);
+		
+		if (this.startReconf){
+			checkFreeness(currentEvent);
+		}
+	}
+	
 //	public void notifyPastRemove(SimEvent currentEvent, PastEdge pe ){
 //		String rid= pe.getRid();
 //		Component host= this.getSimContainer().getHostComponent();
@@ -1171,4 +1219,26 @@ public class VCOnDemand extends Algorithm {
 	}
 	
 	
+	private class DeferredMethod {
+		Object object;
+		String methodName;
+		Object[] params;
+		
+		public DeferredMethod(Object obj, String mtdname, Object[] params){
+			this.object = obj;
+			this.methodName = mtdname;
+			this.params = params;
+		}
+
+		public void run(){
+			LOGGER.info("*** Call deferred method " + methodName);
+			SimEvent.runMethod(methodName, object, params);
+		}
+		public Object[] getParams() {
+			return params;
+		}
+		public void setParams(Object[] params) {
+			this.params = params;
+		}
+	}
 }
