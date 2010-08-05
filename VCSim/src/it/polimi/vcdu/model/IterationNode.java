@@ -12,10 +12,11 @@ import it.polimi.vcdu.model.OutPort;
 public class IterationNode {
 	private float delay;
 	private OutPort outPort;
+	private boolean subTxInitAcked;
 	public IterationNode (float delay, OutPort outPort){
 		this.delay=delay;
 		this.outPort=outPort;
-		
+		setSubTxInitAcked(false);
 	}
 	/**
 	 * @return the delay
@@ -44,6 +45,18 @@ public class IterationNode {
 	
 	public String toString(){
 		return "("+delay+","+outPort+")";
+	}
+	/**
+	 * @param subTxInitAcked the subTxInitAcked to set
+	 */
+	public void setSubTxInitAcked(boolean subTxInitAcked) {
+		this.subTxInitAcked = subTxInitAcked;
+	}
+	/**
+	 * @return the subTxInitAcked
+	 */
+	public boolean isSubTxInitAcked() {
+		return subTxInitAcked;
 	}
 
 }
