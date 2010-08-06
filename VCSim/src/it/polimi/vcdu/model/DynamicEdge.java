@@ -65,5 +65,5 @@ public class DynamicEdge extends Edge{
 		return representation;
 	}
 	
-	private String representation = null;
+	protected String representation = null;
 }
