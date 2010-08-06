@@ -2,6 +2,7 @@ package it.polimi.vcdu.alg;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -54,11 +55,11 @@ public class VCOnDemand extends Algorithm {
 		
 	private float vCOndemandReqTime = -1.0f;
 	
-	private ArrayList<Component> vCScope;
-	private ArrayList<OutPort> requestOnDemandToWait;
+	private HashSet<Component> vCScope;
+	private HashSet<OutPort> requestOnDemandToWait;
 	
-	private ArrayList<OutPort> inScopeOutPorts = new ArrayList<OutPort>();
-	private ArrayList<InPort> inScopeInPorts = new ArrayList<InPort>();
+	private HashSet<OutPort> inScopeOutPorts = new HashSet<OutPort>();
+	private HashSet<InPort> inScopeInPorts = new HashSet<InPort>();
 	
 	private ArrayList<DeferredMethod> blockedMethodsDueToOnDemandSettingUp = new ArrayList<DeferredMethod>();
 	
@@ -82,18 +83,18 @@ public class VCOnDemand extends Algorithm {
 		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
 		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from"
 				+ getSimContainer().getHostComponent().getId()
-				+ " at VT: "+vCOndemandReqTime +" ***");
+				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
 		this.collectReqSettingCallBack.callback(currentEvent, null);
 		Component hostComponent = this.getSimContainer().getHostComponent();
-		ArrayList<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
+		HashSet<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
 		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
 	
-	public void onBeingRequestOnDemand(SimEvent currentEvent, ArrayList<Component> scope, StaticEdge ose){
+	public void onBeingRequestOnDemand(SimEvent currentEvent, HashSet<Component> scope, StaticEdge ose){
 		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from edge "
 				+ ose
-				+ " at VT: "+vCOndemandReqTime +" ***");
+				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
 		if(this.vCScope == null){ // this is the first request
 			this.vCScope = scope;
 			
@@ -113,7 +114,7 @@ public class VCOnDemand extends Algorithm {
 				directDependingComponentsToWaitForLocalSettingUpDone.add(peerhost);
 			}
 			//we need to wait for all request from outgoing components in scope, setup the waitng
-			this.requestOnDemandToWait = new ArrayList<OutPort>(inScopeOutPorts);
+			this.requestOnDemandToWait = new HashSet<OutPort>(inScopeOutPorts);
 		};
 		
 		if (ose==null){ //from myself
@@ -212,8 +213,8 @@ public class VCOnDemand extends Algorithm {
 			}
 
 			//create future edges and wait for acks
-			WaitingForRootAckFutureCreate waitingObj = new WaitingForRootAckFutureCreate(callback);
-			waitingObj.addObserver(new Observer(){
+			WaitingForRootAckFutureCreate waitingObjFuture = new WaitingForRootAckFutureCreate(callback);
+			waitingObjFuture.addObserver(new Observer(){
 				@Override
 				public void update(Observable o, Object arg) {
 					SimEvent currentEvent = ((WaitingForRootAckFutureCreate)o).getCurrentEvent();
@@ -221,28 +222,29 @@ public class VCOnDemand extends Algorithm {
 					callBack.callback(currentEvent, null);				
 				}
 			});
-			ArrayList<FutureEdge> path= new ArrayList<FutureEdge>();
-			path.add(host.getLocalFe(tx.getId()));
-			this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
-			this.onDemandPaths.add(path.toString());
-			for(OutPort op: futures){
-				FutureEdge fe= new FutureEdge(op,op.getPeerPort(),tx.getId());
-				host.addToOES(fe);
-				waitingObj.toWait(fe);	
-				ArrayList<FutureEdge> pathToSend=new ArrayList<FutureEdge>(path);
-				pathToSend.add(fe);
-				Object[] content= new Object[2];
-				content[0]= "notifyFutureCreate";
-				content[1]= pathToSend;
-				Object[] params= new Object[1];			
-				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
-			}	
-			waitingObj.setCurrentEvent(currentEvent);
-			waitingObj.checkAndNotify();
+			if(!futures.isEmpty()){
+				ArrayList<FutureEdge> path= new ArrayList<FutureEdge>();
+				path.add(host.getLocalFe(tx.getId()));
+				this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObjFuture);
+				this.onDemandPaths.add(path.toString());
+				for(OutPort op: futures){
+					FutureEdge fe= new FutureEdge(op,op.getPeerPort(),tx.getId());
+					host.addToOES(fe);
+					waitingObjFuture.toWait(fe);	
+					ArrayList<FutureEdge> pathToSend=new ArrayList<FutureEdge>(path);
+					pathToSend.add(fe);
+					Object[] content= new Object[2];
+					content[0]= "notifyFutureCreate";
+					content[1]= pathToSend;
+					Object[] params= new Object[1];			
+					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+				}	
+			}
+			
 			
 		
-			getLOGGER().fine("we are waiting for acks of future edge creation on demand from ports: "+ futures+
+			LOGGER.fine("we are waiting for acks of future edge creation on demand from ports: "+ futures+
 					" At virtual time: "+Engine.getDefault().getVirtualTime() +
 					"; The tx: "+tx.getAncestors());
 			
@@ -256,31 +258,42 @@ public class VCOnDemand extends Algorithm {
 					callBack.callback(currentEvent, null);				
 				}
 			});
-			ArrayList<PastEdge> ppath= new ArrayList<PastEdge>();
-			ppath.add(host.getLocalPe(tx.getId()));
-			this.waitingForEdgeCreateConditionObjs.put(ppath.toString(), waitingObjPast);
-			this.onDemandPaths.add(ppath.toString());
-			for(OutPort op: pasts){
-				PastEdge pe= new PastEdge(op,op.getPeerPort(),tx.getId());
-				host.addToOES(pe);
-				waitingObjPast.toWait(pe);	
-				ArrayList<PastEdge> ppathToSend=new ArrayList<PastEdge>(ppath);
-				ppathToSend.add(pe);
-				Object[] content= new Object[2];
-				content[0]= "notifyPastCreateOD";
-				content[1]= ppathToSend;
-				Object[] params= new Object[1];			
-				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
-			}	
-			waitingObjPast.setCurrentEvent(currentEvent);
-			waitingObjPast.checkAndNotify();
+			if(! pasts.isEmpty()){
+				ArrayList<PastEdge> ppath= new ArrayList<PastEdge>();
+				ppath.add(host.getLocalPe(tx.getId()));
+				this.waitingForEdgeCreateConditionObjs.put(ppath.toString(), waitingObjPast);
+				this.onDemandPaths.add(ppath.toString());
+				for(OutPort op: pasts){
+					PastEdge pe= new PastEdge(op,op.getPeerPort(),tx.getId());
+					host.addToOES(pe);
+					waitingObjPast.toWait(pe);	
+					ArrayList<PastEdge> ppathToSend=new ArrayList<PastEdge>(ppath);
+					ppathToSend.add(pe);
+					Object[] content= new Object[2];
+					content[0]= "notifyPastCreateOD";
+					content[1]= ppathToSend;
+					Object[] params= new Object[1];			
+					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+				}
+			}
 			
+			waitingObjFuture.setCurrentEvent(currentEvent);
+			waitingObjPast.setCurrentEvent(currentEvent);
 		
-			getLOGGER().fine("we are waiting for acks of past edge creation on demand from ports: "+ pasts+
+			LOGGER.fine("we are waiting for acks of past edge creation on demand from ports: "+ pasts+
 					" At virtual time: "+Engine.getDefault().getVirtualTime() +
 					"; The tx: "+tx.getAncestors());
 		}
+		
+		Collection<Observable> allWaitingObjs = new HashSet<Observable>(waitingForEdgeCreateConditionObjs.values());
+//		for(Observable ob: allWaitingObjs){
+//			if(ob instanceof WaitingForRootAckFutureCreate){
+//				((WaitingForRootAckFutureCreate)ob).checkAndNotify();
+//			}else{
+//				((WaitingForRootAckPastCreateOD)ob).checkAndNotify();
+//			}
+//		}
 	}
 	
 	private void checkAndNotifyFinishSetupOD(SimEvent currentEvent){
@@ -290,8 +303,15 @@ public class VCOnDemand extends Algorithm {
 				return;
 			}
 		}
-		this.isLocalSettingUpDone = true; // this value does not affect whether this component can switch to VC, but affects depended components
+		if (this.isLocalSettingUpDone){ // no need to do it again.
+			return;
+		}
 		
+		this.isLocalSettingUpDone = true; // this value  affects depended components
+		this.checkAndSwitchToVC(currentEvent);
+		
+		LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
+				+ " finished local setting up at VT: " + Engine.getDefault().getVirtualTime());
 		// notify depended components through out going components
 		for(OutPort op: this.inScopeOutPorts){
 			Object[] content= new Object[2];
@@ -299,7 +319,9 @@ public class VCOnDemand extends Algorithm {
 			content[1]= this.getSimContainer().getHostComponent();
 			Object[] params= new Object[1];			
 			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
+			LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
+					+ "notify depending component: " + op.getPeerPort().getHost().getId());
 		}	
 		
 		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
@@ -309,14 +331,14 @@ public class VCOnDemand extends Algorithm {
 
  	}
 	
-	
+	// I am notified a depending component has finished its setting up.
 	public void notifyOnDemandSettingUpLocalDone(SimEvent currentEvent, Component theComponent){
 		//Let's pass it down. so that the targeted node can know all the setting up is done and then
 		// begins to block for freeness
 		for(OutPort op: this.inScopeOutPorts){
 			Object[] content= new Object[2];
 			content[0]= "notifyOnDemandSettingUpLocalDone";
-			content[1]= this.getSimContainer().getHostComponent();
+			content[1]= theComponent;
 			Object[] params= new Object[1];			
 			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
 			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
@@ -327,7 +349,7 @@ public class VCOnDemand extends Algorithm {
 		
 		
 		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
-			allDependingComponentsToWaitForLocalSettingUpDone.remove(getSimContainer().getHostComponent());
+			allDependingComponentsToWaitForLocalSettingUpDone.remove(theComponent);
 			checkAndSwithToReconfig(currentEvent);
 		}
 	}
@@ -336,14 +358,15 @@ public class VCOnDemand extends Algorithm {
 		if(this.dDMngMode== DDMngMode.VC){ //we are already in VC
 			return;
 		}
-		if(this.directDependingComponentsToWaitForLocalSettingUpDone.isEmpty() ){
+		if(this.directDependingComponentsToWaitForLocalSettingUpDone.isEmpty() && this.isLocalSettingUpDone){
 			// Good, now we can switch to VC
 			this.dDMngMode = DDMngMode.VC;
-			
+			LOGGER.info("Component:" + this.getSimContainer().getHostComponent().getId() 
+					+" switch to VC, and resume all blocked txs, at VT: " + Engine.getDefault().getVirtualTime());
 			// resume the blocked initing/ending of subtxs
 			for (DeferredMethod dm:this.blockedMethodsDueToOnDemandSettingUp){
 				Object[] params = dm.getParams();
-				assert params[0] instanceof SimEvent;
+				assert params[0] == null;
 				params[0] = currentEvent;
 				dm.setParams(params); //not necessary but ...
 				dm.run();
@@ -353,7 +376,11 @@ public class VCOnDemand extends Algorithm {
 
 	private void checkAndSwithToReconfig(SimEvent currentEvent){
 		if(this.allDependingComponentsToWaitForLocalSettingUpDone.isEmpty())
-			this.startReconfAfterSettingUpOnDemandReady(currentEvent);
+			if(! this.startReconf){
+				LOGGER.info("Component:" + this.getSimContainer().getHostComponent().getId() 
+						+" start reconfigure after setting up on demand, at VT: " + Engine.getDefault().getVirtualTime());
+				this.startReconfAfterSettingUpOnDemandReady(currentEvent);
+			}
 	}
 
 
@@ -361,9 +388,9 @@ public class VCOnDemand extends Algorithm {
 	 * Utility functions used in this class.
 	 */
 	
-	public static ArrayList<Component> computeAffectedScope(Component com, Configuration conf){
-		ArrayList<Component> resultScope = new ArrayList<Component>();
-		ArrayList<Component> allComponents = new ArrayList<Component>(conf.getComponents());
+	public static HashSet<Component> computeAffectedScope(Component com, Configuration conf){
+		HashSet<Component> resultScope = new HashSet<Component>();
+		HashSet<Component> allComponents = new HashSet<Component>(conf.getComponents());
 		boolean hasMore = false;
 		resultScope.add(com);
 		ArrayList<Component> lastAdded = new ArrayList<Component>();
@@ -422,7 +449,7 @@ public class VCOnDemand extends Algorithm {
 
 	
 	public void startReconfAfterSettingUpOnDemandReady(SimEvent currentEvent){
-		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
+		LOGGER.info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
 				"virtual time "+Engine.getDefault().getVirtualTime());
 		
 		this.startReconf=true;
@@ -435,7 +462,7 @@ public class VCOnDemand extends Algorithm {
 		checkFreeness(currentEvent);
 	}
 	public void startReconfWaitingAfterSettingUpOnDemandReady(SimEvent currentEvent){
-		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
+		LOGGER.info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
 				"virtual time "+Engine.getDefault().getVirtualTime());
 		this.startReconf=true;
 		this.waitingInsteadOfBlocking=true;
@@ -605,7 +632,7 @@ public class VCOnDemand extends Algorithm {
 		assert this.vCScope.contains(this.getSimContainer().getHostComponent());
 		assert this.dDMngMode != DDMngMode.DEFAULT;
 
-		getLOGGER().fine("Ack of non local future edge creation received of path: "+ path+
+		LOGGER.info("Ack of non local future edge creation received of path: "+ path+
 				" At virtual time: "+Engine.getDefault().getVirtualTime() );
 		
 		assert path.size()>1;
@@ -632,7 +659,7 @@ public class VCOnDemand extends Algorithm {
 	 * @param path
 	 */
 	public void notifyPastCreateOD(SimEvent currentEvent, ArrayList<PastEdge> path){
-		getLOGGER().fine("Being notified a non local past edge to me is created on demand. At virtual time: "
+		LOGGER.info("Being notified a non local past edge to me is created on demand. At virtual time: "
 				+Engine.getDefault().getVirtualTime() + "; The path: "+path);
 		assert !this.vCScope.isEmpty();
 		
@@ -681,7 +708,7 @@ public class VCOnDemand extends Algorithm {
 	
 	public void ackPastCreateDD(SimEvent currentEvent, ArrayList<PastEdge> path){
 
-		getLOGGER().fine("Ack of non local future edge creation received of path: "+ path+
+		getLOGGER().info("Ack of non local past edge creation received of path: "+ path+
 				" At virtual time: "+Engine.getDefault().getVirtualTime() );
 		
 		assert path.size()>1;
@@ -940,16 +967,16 @@ public class VCOnDemand extends Algorithm {
 		}
 	}
 	
-//	public void notifyPastRemove(SimEvent currentEvent, PastEdge pe ){
-//		String rid= pe.getRid();
-//		Component host= this.getSimContainer().getHostComponent();
-//		host.removeFromIES(pe);
-//		this.removeAllEdges(currentEvent, rid);
-//		if (this.startReconf){
-//			checkFreeness(currentEvent);
-//		}
-//	}	
-//	
+	public void notifyPastRemove(SimEvent currentEvent, PastEdge pe ){
+		String rid= pe.getRid();
+		Component host= this.getSimContainer().getHostComponent();
+		host.removeFromIES(pe);
+		this.removeAllEdges(currentEvent, rid);
+		if (this.startReconf){
+			checkFreeness(currentEvent);
+		}
+	}	
+	
 	public void checkFreeness(SimEvent currentEvent){
 		assert this.startReconf;
 		//populating the FSet and the PSet
@@ -1023,8 +1050,7 @@ public class VCOnDemand extends Algorithm {
 		public void ackReceived(SimEvent currentEvent,FutureEdge fe){
 			this.currentEvent=currentEvent;
 			this.fEdgesToAck.remove(fe);
-			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();			
+			this.checkAndNotify();			
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
@@ -1078,8 +1104,7 @@ public class VCOnDemand extends Algorithm {
 		public void ackReceived(SimEvent currentEvent,PastEdge pe){
 			this.currentEvent=currentEvent;
 			this.pEdgesToAck.remove(pe);
-			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();			
+			this.checkAndNotify();			
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
@@ -1236,7 +1261,18 @@ public class VCOnDemand extends Algorithm {
 
 		public void run(){
 			LOGGER.info("*** Call deferred method " + methodName);
-			SimEvent.runMethod(methodName, object, params);
+			//SimEvent.runMethod(methodName, object, params); //does not work, why?
+			SimEvent currentEvent = (SimEvent) params[0];
+			SimAppTx simApp = (SimAppTx)params[1];
+			CallBack callBack = (CallBack)params[2];
+			if(methodName.equals("onBeingInitSubTx")){
+				onBeingInitSubTx(currentEvent,simApp,callBack);
+			}else if(methodName.equals("onEndingSubTx")){
+				onEndingSubTx(currentEvent,simApp,callBack);
+			}else{
+				assert (methodName.equals("onEndingRootTx"));
+				onEndingRootTx(currentEvent,simApp,callBack);
+			}	
 		}
 		public Object[] getParams() {
 			return params;
