@@ -2,6 +2,7 @@ package it.polimi.vcdu.exp;
 
 import it.polimi.vcdu.exp.Experiment.Result;
 import it.polimi.vcdu.sim.ControlParameters;
+import it.polimi.vcdu.sim.SimNet;
 import it.polimi.vcdu.util.TopologyGenerator;
 
 import java.io.FileOutputStream;
@@ -86,6 +87,7 @@ public class ExperimentSet {
 		for (int i=0;i<runNumber; i++){
 			params.setSeed(seeds[i]);
 			params.reInit();
+			SimNet.reInit();
 			boolean waitingVC=false;
 			Experiment exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
 			exp.run();

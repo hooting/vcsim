@@ -54,5 +54,7 @@ public class SimNet extends SimObject {
 		
 	}
 	
-
+	public static void reInit(){
+		simNetMap.clear();
+	}
 }

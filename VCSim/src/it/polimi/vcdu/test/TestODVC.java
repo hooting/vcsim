@@ -59,8 +59,8 @@ public class TestODVC {
 
 		ControlParameters.getCurrentParameters().setMaxVirtualTime(200000f);
 
-		int nNodes = 8;
-		int nEdges = 2;
+		int nNodes = 16;
+		int nEdges = 3;
 
 //		int nNodes = 2;
 //		int nEdges = 1;
@@ -126,9 +126,15 @@ public class TestODVC {
 		});		
 		sim.run();
 		
-		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Quiescence: \n\t RequestTime: "+ RequestTime
+		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with VCOnDemand: \n\t RequestTime: "+ RequestTime
 				+" total working time when request: "+ totalWorkingTimeWhenRequesting
 				+"\n\t ReadyTime: "+ReadyTime + " total working time when ready: "+ totalWorkingTimeWhenReady);
+		
+		reInit();
+		Configuration conf2 = new Configuration(configGraph);
+		Component targetedComponent2 = conf2.getComponentFromId("C1"); //C2
+
+		exp_quiescence(conf2,targetedComponent2);
 	}
 	private static void reInit(){
 		vid = 1;
@@ -148,76 +154,76 @@ public class TestODVC {
 //		logger.getHandlers()[0].setLevel(newlevel);
 //	}
 //
-//	private static void exp_quiescence(Configuration conf, Component targetedComponent, float triggeringTime) {
-//		Simulator sim = new Simulator(conf, Quiescence.class);
-//		SimContainer simContainer = sim.getSimContainer(targetedComponent);
-//		
-//		try {
-//			Object[] content = new Object[1];
-//			content[0] = "onBeingPassivated";
-//
-//			Message message = new Message("QuiescencPsuadoMsg", null, null,
-//					content);
-//			SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
-//			reconfReqEvent.setSchedulerListener(new MySchedulerListener());
-//			ArrayList<Event> events = new ArrayList<Event>();
-//
-//			events.add(reconfReqEvent);
-//			NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
-//					events);
-//
-//			Object[] params = new Object[1];
-//			params[0] = message;
-//			sim.insertProcess(process);
-//			sim.insertEvent(reconfReqEvent);
-//			reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer,
-//					params, triggeringTime);
-//
-//			// the creation of SimEvent will affect global random, so we make a second event to 
-//			// help the measuring (who will new two events before sim run) to reproduce the exact
-//			// behavior. Note that we need two, another ome is within notifyWithDelay
-//			@SuppressWarnings("unused")
-//			SimEvent noUsereconfReqEvent1 = new SimEvent(null, null, null, null);
-//			@SuppressWarnings("unused")
-//			SimEvent noUsereconfReqEvent2 = new SimEvent(null, null, null, null);
-//
-//
-//		} catch (InvalidParamsException e) {
-//			e.printStackTrace();
-//			System.exit(1);
-//		}
-//		
-//		
-//
-//		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
-//			@Override
-//			public void callback(SimEvent currentEvent, Object[] parameters) {
-//				RequestTime = Engine.getDefault().getVirtualTime();
-//				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
-//				for (Component com:conf.getComponents()){
-//					totalWorkingTimeWhenRequesting += com.getTotalWorkingTime();
-//				}
-//			}
-//			
-//		});		
-//		simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
-//			@Override
-//			public void callback(SimEvent currentEvent, Object[] parameters) {
-//				Simulator.getDefaultSimulator().setStopSimulation(true);
-//				ReadyTime = Engine.getDefault().getVirtualTime();
-//				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
-//				for (Component com:conf.getComponents()){
-//					totalWorkingTimeWhenReady += com.getTotalWorkingTime();
-//				}
-//			}
-//			
-//		});		
-//		sim.run();
-//		
-//		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Quiescence: \n\t RequestTime: "+ RequestTime
-//				+" total working time when request: "+ totalWorkingTimeWhenRequesting
-//				+"\n\t ReadyTime: "+ReadyTime + " total working time when ready: "+ totalWorkingTimeWhenReady);
-//	}
+	private static void exp_quiescence(Configuration conf, Component targetedComponent) {
+		Simulator sim = new Simulator(conf, Quiescence.class);
+		SimContainer simContainer = sim.getSimContainer(targetedComponent);
+		
+		try {
+			Object[] content = new Object[1];
+			content[0] = "onBeingPassivated";
+
+			Message message = new Message("QuiescencPsuadoMsg", null, null,
+					content);
+			SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
+			reconfReqEvent.setSchedulerListener(new MySchedulerListener());
+			ArrayList<Event> events = new ArrayList<Event>();
+
+			events.add(reconfReqEvent);
+			NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
+					events);
+
+			Object[] params = new Object[1];
+			params[0] = message;
+			sim.insertProcess(process);
+			sim.insertEvent(reconfReqEvent);
+			reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer,
+					params, RequestTime);
+
+			// the creation of SimEvent will affect global random, so we make a second event to 
+			// help the measuring (who will new two events before sim run) to reproduce the exact
+			// behavior. Note that we need two, another ome is within notifyWithDelay
+			@SuppressWarnings("unused")
+			SimEvent noUsereconfReqEvent1 = new SimEvent(null, null, null, null);
+			@SuppressWarnings("unused")
+			SimEvent noUsereconfReqEvent2 = new SimEvent(null, null, null, null);
+
+
+		} catch (InvalidParamsException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		
+
+		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				RequestTime = Engine.getDefault().getVirtualTime();
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				for (Component com:conf.getComponents()){
+					totalWorkingTimeWhenRequesting += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				Simulator.getDefaultSimulator().setStopSimulation(true);
+				ReadyTime = Engine.getDefault().getVirtualTime();
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				for (Component com:conf.getComponents()){
+					totalWorkingTimeWhenReady += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		sim.run();
+		
+		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Quiescence: \n\t RequestTime: "+ RequestTime
+				+" total working time when request: "+ totalWorkingTimeWhenRequesting
+				+"\n\t ReadyTime: "+ReadyTime + " total working time when ready: "+ totalWorkingTimeWhenReady);
+	}
 //
 //	
 //	private static void exp_measuring(Configuration conf, Component targetedComponent, float requestTime, float readyTime) {

@@ -15,7 +15,7 @@ import java.util.ArrayList;
  * 		3) Delay: here it is fixed = I would propose (localProcessingTime)/10
  * 		4) Target components: C1 as example of server node, C_Last as example of edge node
  * 		5) MeanArrival Fixed (localProcessingTime)/2
- * 		6) LocalProcessing Time 10
+ * 		6) LocalProcessing Time 50
  *  
  */
 public class TimelinessDisruption {
@@ -28,8 +28,8 @@ public class TimelinessDisruption {
 	 */
 	public static void main(String[] args) {
 		//the number of edges is the same for each graph
-		int nEdges=2;
-		int [] systemScale= {4,5,6,7};
+		int nEdges=3;
+		int [] systemScale= {8,16,32,64,128};
 		int masterSeed=123456;		
 		int nRun=50;
 		float localProcessingTime=50;
