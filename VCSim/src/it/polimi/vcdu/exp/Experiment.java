@@ -9,6 +9,7 @@ import edu.uci.ics.jung.graph.Graph;
 import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
 import it.polimi.vcdu.alg.VersionConsistency;
+import it.polimi.vcdu.alg.VCOnDemand;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
@@ -46,7 +47,8 @@ public class Experiment {
 		reInit();
 		expQuiescence();
 		reInit();
-		this.expVersConsistency();
+		//this.expVersConsistency();
+		this.expOnDemandVersConsistency();
 		reInit();
 		this.expMeasuringQ();
 		reInit();
@@ -185,6 +187,7 @@ public class Experiment {
 			System.exit(1);
 		}
 		
+		
 		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
 			@Override
 			public void callback(SimEvent currentEvent, Object[] parameters) {
@@ -219,7 +222,86 @@ public class Experiment {
 		
 	}
 	
-	
+	public void expOnDemandVersConsistency(){
+		Configuration conf = new Configuration(configGraph);
+		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
+		Simulator sim = new Simulator (conf,VCOnDemand.class);
+		SimContainer simContainer= sim.getSimContainer(targetedComponent);
+		
+		try {
+			Object[] content = new Object[1];
+			if(this.waitingVC){
+				content[0] = "onBeingRequestOnDemandWaiting";
+			}
+			else{
+				content[0] = "onBeingRequestOnDemand";
+			}			
+
+			Message message = new Message("VersConsPseudoMsg", null, null,
+					content);
+			SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
+			reconfReqEvent.setSchedulerListener(new MySchedulerListener());
+			ArrayList<Event> events = new ArrayList<Event>();
+
+			events.add(reconfReqEvent);
+			NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
+					events);
+
+			Object[] params = new Object[1];
+			params[0] = message;
+			sim.insertProcess(process);
+			sim.insertEvent(reconfReqEvent);
+			reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer,
+					params, this.result.reqTime);
+
+			// the creation of SimEvent will affect global random, so we make a second event to 
+			// help the measuring (who will new two events before sim run) to reproduce the exact
+			// behavior. Note that we need two, another ome is within notifyWithDelay
+			@SuppressWarnings("unused")
+			SimEvent noUsereconfReqEvent1 = new SimEvent(null, null, null, null);
+			@SuppressWarnings("unused")
+			SimEvent noUsereconfReqEvent2 = new SimEvent(null, null, null, null);
+
+
+		} catch (InvalidParamsException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		
+		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				float requestTime = Engine.getDefault().getVirtualTime();
+				assert Math.abs(result.reqTime -requestTime) < 0.01;
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				result.workWhenRequestF = 0f;
+				for (Component com:conf.getComponents()){
+					result.workWhenRequestF += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				Simulator.getDefaultSimulator().setStopSimulation(true);
+				result.vcFreenessTime = Engine.getDefault().getVirtualTime();
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				result.workWhenFreenessF = 0f;
+				for (Component com:conf.getComponents()){
+					result.workWhenFreenessF += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		sim.run();
+		
+		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Version Consistency \n\t RequestTime: "+ result.reqTime
+				+" total working time when request: "+ result.workWhenRequestF
+				+"\n\t ReadyTime: "+result.vcFreenessTime + " total working time when ready: "+ result.workWhenFreenessF);					
+		
+	}
 	private void expMeasuringF( ) {
 		Configuration conf = new Configuration(configGraph);
 		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);

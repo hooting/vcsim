@@ -67,7 +67,7 @@ public class ExperimentSet {
 
 	public void run() throws IOException{
 		FileWriter fw;
-		fw= new FileWriter(id+"_exp.csv");		
+		fw= new FileWriter(id+".csv");		
 		fw.write("# "+ this+"\n");
 		ControlParameters params=ControlParameters.getCurrentParameters();
 		params.setMeanArrival(meanArrival);
@@ -80,13 +80,14 @@ public class ExperimentSet {
 			seeds[i]= rand.nextInt();			
 		}
 		float reqTime= this.localProcessingTime *5;
-		//generating the graph
-		this.graph=this.initConfigGraph();
+	
 		fw.write("Seed,ReqTime, quiescenceTime,deltaQT, vcFreenessTime,deltaFT, workWhenFreenessF, workWhenFreenessM, workWhenQuiescenceM, workWhenQuiescenceQ, workWhenRequestF, workWhenRequestM"
 				+ ", workWhenRequestQ, lossWorkByQu, lossWorkByVC\n" );
 		for (int i=0;i<runNumber; i++){
 			params.setSeed(seeds[i]);
 			params.reInit();
+			//generating the graph
+			this.graph=this.initConfigGraph();
 			SimNet.reInit();
 			boolean waitingVC=false;
 			Experiment exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
@@ -152,7 +153,7 @@ public class ExperimentSet {
 //			e.printStackTrace();
 //			System.exit(1);
 //		}
-		tg.visualize(new ToStringLabeller<Number>());
+//		tg.visualize(new ToStringLabeller<Number>());
 
 		return mg;
 	}

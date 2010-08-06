@@ -29,7 +29,7 @@ public class TimelinessDisruption {
 	public static void main(String[] args) {
 		//the number of edges is the same for each graph
 		int nEdges=3;
-		int [] systemScale= {8,16,32,64,128};
+		int [] systemScale= {32,64,128};
 		int masterSeed=123456;		
 		int nRun=50;
 		float localProcessingTime=50;
