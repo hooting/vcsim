@@ -16,10 +16,12 @@ import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.DynamicEdge;
 import it.polimi.vcdu.model.FutureEdge;
+import it.polimi.vcdu.model.FutureEdgeOD;
 import it.polimi.vcdu.model.InPort;
 import it.polimi.vcdu.model.Message;
 import it.polimi.vcdu.model.OutPort;
 import it.polimi.vcdu.model.PastEdge;
+import it.polimi.vcdu.model.PastEdgeOD;
 import it.polimi.vcdu.model.StaticEdge;
 import it.polimi.vcdu.model.Transaction;
 import it.polimi.vcdu.sim.CallBack;
@@ -224,7 +226,9 @@ public class VCOnDemand extends Algorithm {
 			});
 			if(!futures.isEmpty()){
 				ArrayList<FutureEdge> path= new ArrayList<FutureEdge>();
-				path.add(host.getLocalFe(tx.getId()));
+				FutureEdge localFeOrg = host.getLocalFe(tx.getId());
+				FutureEdgeOD localFeOD = new FutureEdgeOD(localFeOrg);
+				path.add(localFeOD);
 				this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObjFuture);
 				this.onDemandPaths.add(path.toString());
 				for(OutPort op: futures){
@@ -260,7 +264,9 @@ public class VCOnDemand extends Algorithm {
 			});
 			if(! pasts.isEmpty()){
 				ArrayList<PastEdge> ppath= new ArrayList<PastEdge>();
-				ppath.add(host.getLocalPe(tx.getId()));
+				PastEdge localPeOrg = host.getLocalPe(tx.getId());
+				PastEdgeOD localPeOD = new PastEdgeOD(localPeOrg);
+				ppath.add(localPeOD);
 				this.waitingForEdgeCreateConditionObjs.put(ppath.toString(), waitingObjPast);
 				this.onDemandPaths.add(ppath.toString());
 				for(OutPort op: pasts){
