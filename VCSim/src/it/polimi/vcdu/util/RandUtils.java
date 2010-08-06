@@ -3,6 +3,8 @@
  */
 package it.polimi.vcdu.util;
 
+import java.util.logging.Logger;
+
 import it.polimi.vcdu.sim.ControlParameters;
 import it.unipr.ce.dsg.deus.core.Engine;
 import cern.jet.random.Normal;
@@ -30,7 +32,7 @@ public class RandUtils {
 	public static float RandNormalDelay() {
 		double nt =	normal.nextDouble();
 		if (nt<=0 || nt >=2*ControlParameters.getCurrentParameters().getMeanServTime()){
-			Engine.getDefault().getLogger().warning("Abandon too small or too large LocalExeTime: "+ nt 
+			Logger.getLogger("it.polimi.vcdu").warning("Abandon too small or too large LocalExeTime: "+ nt 
 					+ " regenerate it.");
 			nt = RandNormalDelay();
 		}
