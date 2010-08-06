@@ -3,32 +3,34 @@ package it.polimi.vcdu.test;
 import java.io.IOException;
 
 import it.polimi.vcdu.exp.ExperimentSet;
+import it.polimi.vcdu.exp.Overhead;
 
-public class testFive {
+public class testSix {
 
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
 		/**
-		 * 
 		 * @param nNodes
 		 * @param nEdges
 		 * @param runNumber
-		 * @param messageDelay
+		 * @param maxDelay
 		 * @param meanArrival
 		 * @param localProcessingTime
 		 * @param masterSeed
+		 * @param nSteps
 		 * @param id
-		 * @param targetComponentId
+		 * @param targetComponent
 		 */
-		ExperimentSet expSet= new ExperimentSet(4, 2, 50, 1,10, 50, 123456, "testFive03", "C1");
+		Overhead expOvh= new Overhead(16, 2, 10, 100,25, 50, 123456,11, "testSix", "C1");
 		try {
-			expSet.run();
+			expOvh.run();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		System.out.println("Experiment Completed");
 	}
 
 }

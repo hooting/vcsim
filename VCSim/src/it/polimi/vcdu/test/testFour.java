@@ -34,7 +34,7 @@ public class testFour {
 		
 		float requestTime = 179.7979f;
 		
-		Experiment exp= new Experiment(configGraph,"C1",requestTime);
+		Experiment exp= new Experiment(configGraph,"C1",requestTime,false);
 		exp.run();
 		System.out.println(exp.getResult());
 	}

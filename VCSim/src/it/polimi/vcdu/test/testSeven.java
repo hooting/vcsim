@@ -3,32 +3,35 @@ package it.polimi.vcdu.test;
 import java.io.IOException;
 
 import it.polimi.vcdu.exp.ExperimentSet;
+import it.polimi.vcdu.exp.Overhead;
+import it.polimi.vcdu.exp.WaitingBlocking;
 
-public class testFive {
+public class testSeven {
 
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args) {
 		/**
-		 * 
 		 * @param nNodes
 		 * @param nEdges
 		 * @param runNumber
-		 * @param messageDelay
-		 * @param meanArrival
+		 * @param delay
+		 * @param maxArrival
 		 * @param localProcessingTime
 		 * @param masterSeed
+		 * @param step
 		 * @param id
-		 * @param targetComponentId
+		 * @param targetComponent
 		 */
-		ExperimentSet expSet= new ExperimentSet(4, 2, 50, 1,10, 50, 123456, "testFive03", "C1");
+		WaitingBlocking expWaitBlock= new WaitingBlocking(8, 2, 2, 5,90, 50, 123456,5, "testSeven", "C1");
 		try {
-			expSet.run();
+			expWaitBlock.run();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		System.out.println("Experiment Completed");
 	}
 
 }
