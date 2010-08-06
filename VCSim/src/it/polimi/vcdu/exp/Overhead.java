@@ -1,68 +1,73 @@
 package it.polimi.vcdu.exp;
+/*
+ * Given a fixed size of the graph and a given number of configurations, 
+ * showing the timeliness and the disruption of the two approach by varying the delay
+ * The target component is fixed. I would propose C1
+ */
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Random;
 
 import it.polimi.vcdu.exp.Experiment.Result;
 import it.polimi.vcdu.sim.ControlParameters;
 import it.polimi.vcdu.util.TopologyGenerator;
-
-import java.io.FileOutputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Random;
 
 import org.apache.commons.collections15.Factory;
 
 import edu.uci.ics.jung.graph.DirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.util.Graphs;
-import edu.uci.ics.jung.io.GraphMLWriter;
 import edu.uci.ics.jung.visualization.decorators.ToStringLabeller;
 
-public class ExperimentSet {
-
+public class Overhead {
 	private int nNodes;
 	private int nEdges;
 	private Graph<Number,Number> graph;
 	//how many times to run one experiment
 	private int runNumber;	
-	private float messageDelay;
+	private float maxDelay;
 	private float meanArrival;
 	private float localProcessingTime;	
 	private int masterSeed;
+	private float step;
 	
 	private String id;
 	private String targetComponent;
-	
-
-	int vid=1;
-	int eid=1;
 
 	/**
-	 * 
 	 * @param nNodes
 	 * @param nEdges
 	 * @param runNumber
-	 * @param messageDelay
+	 * @param maxDelay
 	 * @param meanArrival
 	 * @param localProcessingTime
 	 * @param masterSeed
+	 * @param nSteps
 	 * @param id
-	 * @param targetComponentId
+	 * @param targetComponent
 	 */
-	public ExperimentSet(int nNodes, int nEdges, int runNumber,
-			float messageDelay, float meanArrival, float localProcessingTime,
-			int masterSeed, String id,String targetComponentId) {
+	public Overhead(int nNodes, int nEdges, int runNumber, float maxDelay,
+			float meanArrival, float localProcessingTime, int masterSeed,
+			float step, String id, String targetComponent) {
 		super();
 		this.nNodes = nNodes;
 		this.nEdges = nEdges;
 		this.runNumber = runNumber;
-		this.messageDelay = messageDelay;
+		this.maxDelay = maxDelay;
 		this.meanArrival = meanArrival;
 		this.localProcessingTime = localProcessingTime;
 		this.masterSeed = masterSeed;
+		this.step = step;
 		this.id = id;
-		this.targetComponent=targetComponentId;
-		this.graph=initConfigGraph();
+		this.targetComponent = targetComponent;
+		
 	}
+
+
+	int vid=1;
+	int eid=1;
+	
 
 	public void run() throws IOException{
 		FileWriter fw;
@@ -71,7 +76,6 @@ public class ExperimentSet {
 		ControlParameters params=ControlParameters.getCurrentParameters();
 		params.setMeanArrival(meanArrival);
 		params.setMeanServTime(localProcessingTime);
-		params.setNetworkDelay(messageDelay);
 		//generating the array of seeds
 		int [] seeds= new int[this.runNumber];
 		Random rand= new Random(this.masterSeed);
@@ -83,26 +87,34 @@ public class ExperimentSet {
 		this.graph=this.initConfigGraph();
 		fw.write("Seed,ReqTime, quiescenceTime,deltaQT, vcFreenessTime,deltaFT, workWhenFreenessF, workWhenFreenessM, workWhenQuiescenceM, workWhenQuiescenceQ, workWhenRequestF, workWhenRequestM"
 				+ ", workWhenRequestQ, lossWorkByQu, lossWorkByVC\n" );
-		for (int i=0;i<runNumber; i++){
-			params.setSeed(seeds[i]);
-			params.reInit();
-			boolean waitingVC=false;
-			Experiment exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
-			exp.run();
-			Result res= exp.getResult();
-
-			float deltaQT=res.quiescenceTime-res.reqTime;
-			float deltaFT=res.vcFreenessTime-res.reqTime;
-			fw.write(seeds[i]+","+res.reqTime+","+res.quiescenceTime+","+deltaQT+","+res.vcFreenessTime+","+deltaFT+","+res.workWhenFreenessF+","+res.workWhenFreenessM+","+res.workWhenQuiescenceM+","+res.workWhenQuiescenceQ+
-					","+res.workWhenRequestF+","+res.workWhenRequestM+","+res.workWhenRequestQ+","+res.lossWorkByQu()+","+res.lossWorkByVC()+"\n" );
-			
+		
+		Experiment exp;
+		for(float delay=0;delay<this.maxDelay; delay+=step){
+			fw.write("DELAY,"+delay+"\n" );
+			for (int i=0;i<runNumber; i++){
+				params.setNetworkDelay(delay);
+				params.setSeed(seeds[i]);
+				params.reInit();
+				boolean waitingVC=false;
+				exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
+				exp.run();
+				Result res= exp.getResult();
+	
+				float deltaQT=res.quiescenceTime-res.reqTime;
+				float deltaFT=res.vcFreenessTime-res.reqTime;
+				fw.write(seeds[i]+","+res.reqTime+","+res.quiescenceTime+","+deltaQT+","+res.vcFreenessTime+","+deltaFT+","+res.workWhenFreenessF+","+res.workWhenFreenessM+","+res.workWhenQuiescenceM+","+res.workWhenQuiescenceQ+
+						","+res.workWhenRequestF+","+res.workWhenRequestM+","+res.workWhenRequestQ+","+res.lossWorkByQu()+","+res.lossWorkByVC()+"\n" );
+				
+			}
+			fw.write("Average\n" );
+			fw.write("STDEV\n" );
+			fw.write("STDERROR\n" );
 		}
 		fw.close();
 	
 	}
 	
 	
-
 	/**
 	 * @param nNodes
 	 * @param nEdges
@@ -155,20 +167,5 @@ public class ExperimentSet {
 		return mg;
 	}
 
-	/* (non-Javadoc)
-	 * @see java.lang.Object#toString()
-	 */
-	@Override
-	public String toString() {
-		return "ExperimentSet [id=" + id + ", localProcessingTime="
-				+ localProcessingTime + ", masterSeed=" + masterSeed
-				+ ", meanArrival=" + meanArrival + ", messageDelay="
-				+ messageDelay + ", nEdges=" + nEdges + ", nNodes=" + nNodes
-				+ ", runNumber=" + runNumber + ", targetComponent="
-				+ targetComponent + "]";
-	}
 
-	
-
-	
 }

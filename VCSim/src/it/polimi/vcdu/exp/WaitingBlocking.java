@@ -4,7 +4,6 @@ import it.polimi.vcdu.exp.Experiment.Result;
 import it.polimi.vcdu.sim.ControlParameters;
 import it.polimi.vcdu.util.TopologyGenerator;
 
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Random;
@@ -14,64 +13,67 @@ import org.apache.commons.collections15.Factory;
 import edu.uci.ics.jung.graph.DirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.util.Graphs;
-import edu.uci.ics.jung.io.GraphMLWriter;
 import edu.uci.ics.jung.visualization.decorators.ToStringLabeller;
 
-public class ExperimentSet {
-
+/* Given a fixed size of the graph and a given number of configurations, 
+* showing the timeliness and the disruption of the VC in the 
+* two versions:blocking vs waiting  by varying the delay
+* The target component is fixed. I would propose C1
+*/
+public class WaitingBlocking  {
 	private int nNodes;
 	private int nEdges;
 	private Graph<Number,Number> graph;
 	//how many times to run one experiment
 	private int runNumber;	
-	private float messageDelay;
-	private float meanArrival;
+	private float delay;
+	private float maxArrival;
 	private float localProcessingTime;	
 	private int masterSeed;
+	private float step;
 	
 	private String id;
 	private String targetComponent;
-	
-
-	int vid=1;
-	int eid=1;
-
 	/**
-	 * 
 	 * @param nNodes
 	 * @param nEdges
 	 * @param runNumber
-	 * @param messageDelay
-	 * @param meanArrival
+	 * @param delay
+	 * @param maxArrival
 	 * @param localProcessingTime
 	 * @param masterSeed
+	 * @param nSteps
 	 * @param id
-	 * @param targetComponentId
+	 * @param targetComponent
 	 */
-	public ExperimentSet(int nNodes, int nEdges, int runNumber,
-			float messageDelay, float meanArrival, float localProcessingTime,
-			int masterSeed, String id,String targetComponentId) {
+	public WaitingBlocking(int nNodes, int nEdges, int runNumber, float delay,
+			float maxArrival, float localProcessingTime, int masterSeed,
+			float step, String id, String targetComponent) {
 		super();
 		this.nNodes = nNodes;
 		this.nEdges = nEdges;
 		this.runNumber = runNumber;
-		this.messageDelay = messageDelay;
-		this.meanArrival = meanArrival;
+		this.delay = delay;
+		this.maxArrival = maxArrival;
 		this.localProcessingTime = localProcessingTime;
 		this.masterSeed = masterSeed;
+		this.step=step;
 		this.id = id;
-		this.targetComponent=targetComponentId;
-		this.graph=initConfigGraph();
+		this.targetComponent = targetComponent;
 	}
+	
+
+	int vid=1;
+	int eid=1;
+	
 
 	public void run() throws IOException{
 		FileWriter fw;
 		fw= new FileWriter(id+"_exp.csv");		
 		fw.write("# "+ this+"\n");
 		ControlParameters params=ControlParameters.getCurrentParameters();
-		params.setMeanArrival(meanArrival);
+		params.setNetworkDelay(delay);
 		params.setMeanServTime(localProcessingTime);
-		params.setNetworkDelay(messageDelay);
 		//generating the array of seeds
 		int [] seeds= new int[this.runNumber];
 		Random rand= new Random(this.masterSeed);
@@ -81,28 +83,59 @@ public class ExperimentSet {
 		float reqTime= this.localProcessingTime *5;
 		//generating the graph
 		this.graph=this.initConfigGraph();
-		fw.write("Seed,ReqTime, quiescenceTime,deltaQT, vcFreenessTime,deltaFT, workWhenFreenessF, workWhenFreenessM, workWhenQuiescenceM, workWhenQuiescenceQ, workWhenRequestF, workWhenRequestM"
-				+ ", workWhenRequestQ, lossWorkByQu, lossWorkByVC\n" );
-		for (int i=0;i<runNumber; i++){
-			params.setSeed(seeds[i]);
-			params.reInit();
-			boolean waitingVC=false;
-			Experiment exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
-			exp.run();
-			Result res= exp.getResult();
-
-			float deltaQT=res.quiescenceTime-res.reqTime;
-			float deltaFT=res.vcFreenessTime-res.reqTime;
-			fw.write(seeds[i]+","+res.reqTime+","+res.quiescenceTime+","+deltaQT+","+res.vcFreenessTime+","+deltaFT+","+res.workWhenFreenessF+","+res.workWhenFreenessM+","+res.workWhenQuiescenceM+","+res.workWhenQuiescenceQ+
-					","+res.workWhenRequestF+","+res.workWhenRequestM+","+res.workWhenRequestQ+","+res.lossWorkByQu()+","+res.lossWorkByVC()+"\n" );
+		fw.write("Seed,ReqTime, vcFreenessTime,deltaFT\n" );
+		
+		Experiment exp;
+		boolean waitingVC;
+		for(float arrivalRate=this.maxArrival;arrivalRate>this.step; arrivalRate-=step){
+			fw.write("### BLOCKING VERSION CONSISTENCY ###\n");
+			fw.write("arrivalRate,"+arrivalRate+"\n" );
+			waitingVC=false;
+			params.setMeanArrival(arrivalRate);
+			for (int i=0;i<runNumber; i++){		
+				
+				params.setSeed(seeds[i]);
+				params.reInit();
+				
+				exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
+				exp.run();
+				Result res= exp.getResult();
+	
+				float deltaFT=res.vcFreenessTime-res.reqTime;
+				fw.write(seeds[i]+","+res.reqTime+","+res.vcFreenessTime+","+deltaFT+"\n" );
+				
+			}
+			fw.write("Average\n" );
+			fw.write("STDEV\n" );
+			fw.write("STDERROR\n" );
 			
+			fw.write("### WAITING VERSION CONSISTENCY ###\n");
+			fw.write("arrivalRate,"+arrivalRate+"\n" );
+			waitingVC=false;
+			params.setMeanArrival(arrivalRate);
+			for (int i=0;i<runNumber; i++){		
+				
+				params.setSeed(seeds[i]);
+				params.reInit();
+				
+				exp= new Experiment(this.graph,this.targetComponent,reqTime,waitingVC);
+				exp.expVersConsistency();
+				Result res= exp.getResult();
+	
+				
+				float deltaFT=res.vcFreenessTime-res.reqTime;
+				fw.write(seeds[i]+","+res.reqTime+","+res.vcFreenessTime+","+deltaFT+"\n" );
+				
+			}
+			fw.write("Average\n" );
+			fw.write("STDEV\n" );
+			fw.write("STDERROR\n" );
 		}
 		fw.close();
 	
 	}
 	
 	
-
 	/**
 	 * @param nNodes
 	 * @param nEdges
@@ -154,21 +187,6 @@ public class ExperimentSet {
 
 		return mg;
 	}
-
-	/* (non-Javadoc)
-	 * @see java.lang.Object#toString()
-	 */
-	@Override
-	public String toString() {
-		return "ExperimentSet [id=" + id + ", localProcessingTime="
-				+ localProcessingTime + ", masterSeed=" + masterSeed
-				+ ", meanArrival=" + meanArrival + ", messageDelay="
-				+ messageDelay + ", nEdges=" + nEdges + ", nNodes=" + nNodes
-				+ ", runNumber=" + runNumber + ", targetComponent="
-				+ targetComponent + "]";
-	}
-
 	
 
-	
 }

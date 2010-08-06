@@ -30,13 +30,15 @@ public class Experiment {
 	private Result result;	
 	Graph<Number,Number> configGraph;
 	private String targetComponentName;
+	private boolean waitingVC;
 	
 	
-	public Experiment(Graph<Number,Number> configGraph, String targetComponentName,float reqTime){
+	public Experiment(Graph<Number,Number> configGraph, String targetComponentName,float reqTime,boolean waitingVC){
 		this.configGraph=configGraph;
 		this.targetComponentName=targetComponentName;
 		result=new Result();
 		result.reqTime=reqTime;
+		this.waitingVC=waitingVC;
 		
 	}
 	
@@ -137,7 +139,7 @@ public class Experiment {
 				+"\n\t ReadyTime: "+result.quiescenceTime + " total working time when ready: "+ result.workWhenQuiescenceQ);
 	}
 	
-	private void expVersConsistency(){
+	public void expVersConsistency(){
 		Configuration conf = new Configuration(configGraph);
 		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
 		Simulator sim = new Simulator (conf,VersionConsistency.class);
@@ -145,9 +147,12 @@ public class Experiment {
 		
 		try {
 			Object[] content = new Object[1];
-			//
-			content[0] = "startReconfWaiting";
-			content[0] = "startReconf";
+			if(this.waitingVC){
+				content[0] = "startReconfWaiting";
+			}
+			else{
+				content[0] = "startReconf";
+			}			
 
 			Message message = new Message("VersConsPseudoMsg", null, null,
 					content);
