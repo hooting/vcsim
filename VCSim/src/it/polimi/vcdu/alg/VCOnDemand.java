@@ -93,6 +93,20 @@ public class VCOnDemand extends Algorithm {
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
 	
+	// I am the targeted component, using waiting strategy insteady of blocking;
+	public void onBeingRequestOnDemandWaiting(SimEvent currentEvent){
+		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
+		this.waitingInsteadOfBlocking = true;
+		LOGGER.info("*** Request received to achieve freeness by waiting istead of blocking. Now setting up dynamic dependences from"
+				+ getSimContainer().getHostComponent().getId()
+				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
+		this.collectReqSettingCallBack.callback(currentEvent, null);
+		Component hostComponent = this.getSimContainer().getHostComponent();
+		HashSet<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
+		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
+		this.onBeingRequestOnDemand(currentEvent,scope,null);
+	}
+	
 	public void onBeingRequestOnDemand(SimEvent currentEvent, HashSet<Component> scope, StaticEdge ose){
 		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from edge "
 				+ ose
@@ -385,7 +399,11 @@ public class VCOnDemand extends Algorithm {
 			if(! this.startReconf){
 				LOGGER.info("Component:" + this.getSimContainer().getHostComponent().getId() 
 						+" start reconfigure after setting up on demand, at VT: " + Engine.getDefault().getVirtualTime());
-				this.startReconfAfterSettingUpOnDemandReady(currentEvent);
+				if(this.waitingInsteadOfBlocking){
+					this.startReconfWaitingAfterSettingUpOnDemandReady(currentEvent);
+				}else{
+					this.startReconfAfterSettingUpOnDemandReady(currentEvent);
+				}
 			}
 	}
 
@@ -638,7 +656,7 @@ public class VCOnDemand extends Algorithm {
 		assert this.vCScope.contains(this.getSimContainer().getHostComponent());
 		assert this.dDMngMode != DDMngMode.DEFAULT;
 
-		LOGGER.info("Ack of non local future edge creation received of path: "+ path+
+		LOGGER.fine("Ack of non local future edge creation received of path: "+ path+
 				" At virtual time: "+Engine.getDefault().getVirtualTime() );
 		
 		assert path.size()>1;
