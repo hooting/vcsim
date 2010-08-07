@@ -3,6 +3,7 @@ package it.polimi.vcdu.test;
 import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
 import it.polimi.vcdu.alg.VCOnDemand;
+import it.polimi.vcdu.alg.VCOnDemandV2;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
@@ -21,6 +22,7 @@ import it.unipr.ce.dsg.deus.core.InvalidParamsException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -50,85 +52,31 @@ public class TestODVC {
 //		prepLogging(Level.WARNING);
 //		prepLogging(Level.INFO);
 		
-//		Logger logger = Logger.getLogger("it.polimi.vcdu.sim.SimAppTx");
-//		logger.setLevel(Level.FINEST);
+		Logger logger = Logger.getLogger("it.polimi.vcdu.alg.VCOnDemandV2");
+		logger.setLevel(Level.FINEST);
 //		java.util.logging.Handler [] handlers = logger.getHandlers();
 //		if (handlers.length == 0) logger.addHandler(new java.util.logging.ConsoleHandler());
 //		logger.getHandlers()[0].setLevel(Level.FINEST);
 ////		Logger.getLogger("it.polimi.vcdu.alg").setLevel(Level.WARNING);
 
 		ControlParameters.getCurrentParameters().setMaxVirtualTime(200000f);
-
-		int nNodes = 16;
-		int nEdges = 3;
+		
+		int nNodes = 14;
+		int nEdges = 2;
 
 //		int nNodes = 2;
 //		int nEdges = 1;
 		Graph<Number,Number> configGraph = initConfigGraph(nNodes, nEdges);
 
-		ControlParameters.getCurrentParameters().setNetworkDelay(2);
-		RequestTime = 179.7979f;
+		ControlParameters.getCurrentParameters().setNetworkDelay(0);
+		RequestTime = 132.7979f;
+		String targetString="C1";
 //		
-///* Experiment VCOnDemand */
-		
 		reInit();
-		Configuration conf = new Configuration(configGraph);
-		Component targetedComponent = conf.getComponentFromId("C1"); //C2
-		Simulator sim = new Simulator(conf, VCOnDemand.class);
-		SimContainer simContainer = sim.getSimContainer(targetedComponent);
-		
-		try {
-			Object[] content = new Object[1];
-			content[0] = "onBeingRequestOnDemand";
-
-			Message message = new Message("VCODPsuadoMsg", null, null,
-					content);
-			SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
-			reconfReqEvent.setSchedulerListener(new MySchedulerListener());
-			ArrayList<Event> events = new ArrayList<Event>();
-
-			events.add(reconfReqEvent);
-			NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
-					events);
-
-			Object[] params = new Object[1];
-			params[0] = message;
-			sim.insertProcess(process);
-			sim.insertEvent(reconfReqEvent);
-			reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer, params, RequestTime);
-		} catch (InvalidParamsException e) {
-			e.printStackTrace();
-			System.exit(1);
-		}
-
-		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
-			@Override
-			public void callback(SimEvent currentEvent, Object[] parameters) {
-				RequestTime = Engine.getDefault().getVirtualTime();
-				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
-				for (Component com:conf.getComponents()){
-					totalWorkingTimeWhenRequesting += com.getTotalWorkingTime();
-				}
-			}
-			
-		});		
-		simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
-			@Override
-			public void callback(SimEvent currentEvent, Object[] parameters) {
-				Simulator.getDefaultSimulator().setStopSimulation(true);
-				ReadyTime = Engine.getDefault().getVirtualTime();
-				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
-				for (Component com:conf.getComponents()){
-					totalWorkingTimeWhenReady += com.getTotalWorkingTime();
-				}
-			}
-			
-		});		
-		sim.run();
-		
-		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with VCOnDemand: \n\t RequestTime: "+ RequestTime
-				+" total working time when request: "+ totalWorkingTimeWhenRequesting
-				+"\n\t ReadyTime: "+ReadyTime + " total working time when ready: "+ totalWorkingTimeWhenReady);
+        expVCOD_VC(configGraph, targetString);
+        
+		reInit();
+        expVCOD(configGraph, targetString);
 		
 		reInit();
 		Configuration conf2 = new Configuration(configGraph);
@@ -136,6 +84,164 @@ public class TestODVC {
 
 		exp_quiescence(conf2,targetedComponent2);
 	}
+	private static void expVCOD_VC(Graph<Number, Number> configGraph,
+			String targetString) {
+		///* Experiment VCOnDemand default VC */
+				
+				reInit();
+				
+				
+				Configuration conf = new Configuration(configGraph);
+				
+				VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.VC;
+				VCOnDemandV2.DefaultVCScope = new HashSet<Component> (conf.getComponents());
+				
+				Component targetedComponent = conf.getComponentFromId(targetString); //C2
+				Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+				//Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+				SimContainer simContainer = sim.getSimContainer(targetedComponent);
+				
+				try {
+					Object[] content = new Object[1];
+		//			content[0] = "onBeingRequestOnDemand";
+					content[0] = "startReconfUnderVC";
+					
+		
+					Message message = new Message("VCODPsuadoMsg", null, null,
+							content);
+					SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
+					reconfReqEvent.setSchedulerListener(new MySchedulerListener());
+					ArrayList<Event> events = new ArrayList<Event>();
+		
+					events.add(reconfReqEvent);
+					NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
+							events);
+		
+					Object[] params = new Object[1];
+					params[0] = message;
+					sim.insertProcess(process);
+					sim.insertEvent(reconfReqEvent);
+					reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer, params, RequestTime);
+				} catch (InvalidParamsException e) {
+					e.printStackTrace();
+					System.exit(1);
+				}
+		
+				simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
+					@Override
+					public void callback(SimEvent currentEvent, Object[] parameters) {
+						RequestTime = Engine.getDefault().getVirtualTime();
+						Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+						for (Component com:conf.getComponents()){
+							totalWorkingTimeWhenRequesting += com.getTotalWorkingTime();
+						}
+					}
+					
+				});		
+				simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
+					@Override
+					public void callback(SimEvent currentEvent, Object[] parameters) {
+						Simulator.getDefaultSimulator().setStopSimulation(true);
+						ReadyTime = Engine.getDefault().getVirtualTime();
+						Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+						for (Component com:conf.getComponents()){
+							totalWorkingTimeWhenReady += com.getTotalWorkingTime();
+						}
+					}
+					
+				});		
+				sim.run();
+				
+				Logger.getLogger("it.polimi.vcdu").info("*** Experiment with VCOnDemand: \n\t RequestTime: "+ RequestTime
+						+" total working time when request: "+ totalWorkingTimeWhenRequesting
+						+"\n\t ReadyTime: "+ReadyTime + " total working time when ready: "+ totalWorkingTimeWhenReady);
+	}
+	
+	
+	
+	
+	private static void expVCOD(Graph<Number, Number> configGraph,
+			String targetString) {
+		///* Experiment VCOnDemand default VC */
+				
+				reInit();
+				
+				
+				Configuration conf = new Configuration(configGraph);
+				
+				
+				VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.DEFAULT;
+				VCOnDemandV2.DefaultVCScope = null;
+				
+				Component targetedComponent = conf.getComponentFromId(targetString); //C2
+				Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+				SimContainer simContainer = sim.getSimContainer(targetedComponent);
+				
+				try {
+					Object[] content = new Object[1];
+					content[0] = "onBeingRequestOnDemand";
+		//			content[0] = "startReconfUnderVC";
+					
+		
+					Message message = new Message("VCODPsuadoMsg", null, null,
+							content);
+					SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
+					reconfReqEvent.setSchedulerListener(new MySchedulerListener());
+					ArrayList<Event> events = new ArrayList<Event>();
+		
+					events.add(reconfReqEvent);
+					NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
+							events);
+		
+					Object[] params = new Object[1];
+					params[0] = message;
+					sim.insertProcess(process);
+					sim.insertEvent(reconfReqEvent);
+					reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer, params, RequestTime);
+				} catch (InvalidParamsException e) {
+					e.printStackTrace();
+					System.exit(1);
+				}
+		
+				simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
+					@Override
+					public void callback(SimEvent currentEvent, Object[] parameters) {
+						RequestTime = Engine.getDefault().getVirtualTime();
+						Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+						for (Component com:conf.getComponents()){
+							totalWorkingTimeWhenRequesting += com.getTotalWorkingTime();
+						}
+					}
+					
+				});		
+				simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
+					@Override
+					public void callback(SimEvent currentEvent, Object[] parameters) {
+						Simulator.getDefaultSimulator().setStopSimulation(true);
+						ReadyTime = Engine.getDefault().getVirtualTime();
+						Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+						for (Component com:conf.getComponents()){
+							totalWorkingTimeWhenReady += com.getTotalWorkingTime();
+						}
+					}
+					
+				});		
+				sim.run();
+				
+				Logger.getLogger("it.polimi.vcdu").info("*** Experiment with VCOnDemand: \n\t RequestTime: "+ RequestTime
+						+" total working time when request: "+ totalWorkingTimeWhenRequesting
+						+"\n\t ReadyTime: "+ReadyTime + " total working time when ready: "+ totalWorkingTimeWhenReady);
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	private static void reInit(){
 		vid = 1;
 		eid = 1;
