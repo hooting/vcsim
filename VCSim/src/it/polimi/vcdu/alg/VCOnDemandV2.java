@@ -348,6 +348,7 @@ public class VCOnDemandV2 extends Algorithm {
 					PastEdgeOD localPeOD = new PastEdgeOD(localPeOrg);
 					ppath4RunningSub.add(localPeOD);
 					this.waitingForEdgeCreateConditionObjs.put(ppath4RunningSub.toString(), waitingObjPast);
+					this.onDemandPaths.add(ppath4RunningSub.toString());
 					PastEdge spe= new PastEdge(outPort,outPort.getPeerPort(),tx.getId()); // we do not add it to OES!
 					waitingObjPast.toWait(spe);
 					ppath4RunningSub.add(spe);
@@ -386,6 +387,8 @@ public class VCOnDemandV2 extends Algorithm {
 		PastEdge xe= path.get(path.size()-1);
 		//we do not add this pseudo edge to host.addToIES(xe);
 		// we also do not care about future edges ...
+		// but we need to setup local edges and out-going edges according to the iteration
+		
 		
 		// let's find out the local transaction corresponding to this
 		// in our current model (RPC) , it's simple, just to find the one with the same 
@@ -395,14 +398,15 @@ public class VCOnDemandV2 extends Algorithm {
 		HashSet<Transaction> txs = host.getLocalTransactionsWithRootRid(xe.getRid());
 		
 		if(txs.isEmpty()){
-			// maybe the initialization of the sub transaction is blocked
+			// maybe that the initialization of ending of the sub transaction is blocked
 			boolean blocked=false;
 			for(DeferredMethod dm :this.blockedMethodsDueToOnDemandSettingUp){
 				String methodName = dm.getMethodName();
 				if (methodName.equals("onBeingInitSubTx") && 
-						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){
+						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){ 
 					blocked = true;
 					pasts.clear();
+					//we do not need to set up local edges now, because it will be set by the onBeingInitSubTx
 					break;
 				}else if(methodName.equals("onEndingSubTx")&& 
 						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){
@@ -416,6 +420,14 @@ public class VCOnDemandV2 extends Algorithm {
 							pasts.add(outPort);
 						}
 					};
+					
+					FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
+					PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
+					host.addToOES(lfe);
+					host.addToOES(lpe);
+					host.addToIES(lfe);
+					host.addToIES(lpe);
+					
 					break;
 				}
 
@@ -438,6 +450,12 @@ public class VCOnDemandV2 extends Algorithm {
 					pasts.add(outPort);
 				}
 			};
+			FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),theOneTx.getRootId());
+			PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),theOneTx.getRootId());
+			host.addToOES(lfe);
+			host.addToOES(lpe);
+			host.addToIES(lfe);
+			host.addToIES(lpe);
 		}
 		
 		WaitingForSubAckPastCreateOD waitingObj=new WaitingForSubAckPastCreateOD(path);	
