@@ -76,8 +76,9 @@ public class VCOnDemandV2 extends Algorithm {
 	private HashMap<String,Observable> waitingForEdgeCreateConditionObjs= new HashMap<String, Observable>();
 	private HashSet<String> onDemandPaths = new HashSet<String>();
 	private boolean isLocalSettingUpDone = false; //is setting up for local root edges done?
-	private HashSet<Component> directDependingComponentsToWaitForLocalSettingUpDone; // Once empty this component can swith to VC
-	private HashSet<Component> allDependingComponentsToWaitForLocalSettingUpDone; //for targeted component only.  Once empty, beging to achieving freeness
+	private HashSet<Component> myDependingComponentsToWaitForLocalSettingUpDone; // Once empty this component can switch to VC
+	boolean iAmTheTarget = false; // am i the target component to update?
+//	private HashSet<Component> allDependingComponentsToWaitForLocalSettingUpDone; //for targeted component only.  Once empty, beging to achieving freeness
 	
 	
 	public VCOnDemandV2(SimContainer simCon) {
@@ -107,10 +108,11 @@ public class VCOnDemandV2 extends Algorithm {
 		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from"
 				+ getSimContainer().getHostComponent().getId()
 				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
+		this.iAmTheTarget = true;
 		this.collectReqSettingCallBack.callback(currentEvent, null);
 		Component hostComponent = this.getSimContainer().getHostComponent();
 		HashSet<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
-		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
+//		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
 	
@@ -121,10 +123,11 @@ public class VCOnDemandV2 extends Algorithm {
 		LOGGER.info("*** Request received to achieve freeness by waiting istead of blocking. Now setting up dynamic dependences from"
 				+ getSimContainer().getHostComponent().getId()
 				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
+		this.iAmTheTarget = true;
 		this.collectReqSettingCallBack.callback(currentEvent, null);
 		Component hostComponent = this.getSimContainer().getHostComponent();
 		HashSet<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
-		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
+//		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
 	
@@ -143,12 +146,12 @@ public class VCOnDemandV2 extends Algorithm {
 				}
 			}
 			
-			directDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>();
+			myDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>();
 			for(InPort ip: host.getInPorts()){
 				Component peerhost = ip.getPeerPort().getHost();
 				assert this.vCScope.contains(peerhost); // currently, all in-ports should be in
 				this.inScopeInPorts.add(ip);
-				directDependingComponentsToWaitForLocalSettingUpDone.add(peerhost);
+				myDependingComponentsToWaitForLocalSettingUpDone.add(peerhost);
 			}
 			//we need to wait for all request from outgoing components in scope, setup the waitng
 			this.requestOnDemandToWait = new HashSet<OutPort>(inScopeOutPorts);
@@ -170,7 +173,7 @@ public class VCOnDemandV2 extends Algorithm {
 	private void switchToONDEMAND(SimEvent currentEvent){
 		LOGGER.info("*** Component: "+ this.getSimContainer().getHostComponent().getId() 
 				+ "swith to ONDEMAND at VT: "+Engine.getDefault().getVirtualTime() +" ***");
-		
+		assert this.dDMngMode==DDMngMode.DEFAULT;
 		this.dDMngMode = DDMngMode.ONDEMAND;
 		
 		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
@@ -392,15 +395,39 @@ public class VCOnDemandV2 extends Algorithm {
 		HashSet<Transaction> txs = host.getLocalTransactionsWithRootRid(xe.getRid());
 		
 		if(txs.isEmpty()){
+			// maybe the initialization of the sub transaction is blocked
+			boolean blocked=false;
+			for(DeferredMethod dm :this.blockedMethodsDueToOnDemandSettingUp){
+				String methodName = dm.getMethodName();
+				if (methodName.equals("onBeingInitSubTx") && 
+						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){
+					blocked = true;
+					pasts.clear();
+					break;
+				}else if(methodName.equals("onEndingSubTx")&& 
+						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){
+					blocked = true;
+					Iteration iter = ((SimAppTx)dm.getParams()[1]).getTransaction().getIteration();
+					assert iter.isEnd();
+					pasts.clear();
+					for(int i=1;i<iter.getList().size()-1;i++) {
+						OutPort outPort = iter.getList().get(i).getOutPort();
+						if(this.inScopeOutPorts.contains(outPort)){
+							pasts.add(outPort);
+						}
+					};
+					break;
+				}
+
+			}
 			// maybe the subtransaction is already ended, but we do not expect it to happen
 			// since messages are kept in order 
-			assert false;
+			assert blocked;
 			for(OutPort op: host.f()){//host.f()return all non-local out ports
 				if(this.inScopeOutPorts.contains(op)){
 					pasts.add(op);
 				}
 			}
-			pasts = host.f();
 		}else{
 			assert txs.size()==1; // should not be more than 1 according to our model
 			theOneTx = txs.iterator().next();
@@ -534,24 +561,24 @@ public class VCOnDemandV2 extends Algorithm {
 		this.isLocalSettingUpDone = true; // this value  affects depended components
 		this.checkAndSwitchToVC(currentEvent);
 		
-		LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
-				+ " finished local setting up at VT: " + Engine.getDefault().getVirtualTime());
-		// notify depended components through out going components
-		for(OutPort op: this.inScopeOutPorts){
-			Object[] content= new Object[2];
-			content[0]= "notifyOnDemandSettingUpLocalDone";
-			content[1]= this.getSimContainer().getHostComponent();
-			Object[] params= new Object[1];			
-			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
-			LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
-					+ "notify depending component: " + op.getPeerPort().getHost().getId());
-		}	
-		
-		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
-			allDependingComponentsToWaitForLocalSettingUpDone.remove(getSimContainer().getHostComponent());
-			checkAndSwithToReconfig(currentEvent);
-		}
+//		LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
+//				+ " finished local setting up at VT: " + Engine.getDefault().getVirtualTime());
+//		// notify depended components through out going components
+//		for(OutPort op: this.inScopeOutPorts){
+//			Object[] content= new Object[2];
+//			content[0]= "notifyOnDemandSettingUpLocalDone";
+//			content[1]= this.getSimContainer().getHostComponent();
+//			Object[] params= new Object[1];			
+//			params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+//			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
+//			LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
+//					+ "notify depending component: " + op.getPeerPort().getHost().getId());
+//		}	
+//		
+//		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
+//			allDependingComponentsToWaitForLocalSettingUpDone.remove(getSimContainer().getHostComponent());
+//			checkAndSwithToReconfig(currentEvent);
+//		}
 
  	}
 	
@@ -568,21 +595,22 @@ public class VCOnDemandV2 extends Algorithm {
 			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
 		}	
 		
-		this.directDependingComponentsToWaitForLocalSettingUpDone.remove(theComponent);
+		this.myDependingComponentsToWaitForLocalSettingUpDone.remove(theComponent);
 		checkAndSwitchToVC(currentEvent);
 		
 		
-		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
-			allDependingComponentsToWaitForLocalSettingUpDone.remove(theComponent);
-			checkAndSwithToReconfig(currentEvent);
-		}
+//		if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
+//			allDependingComponentsToWaitForLocalSettingUpDone.remove(theComponent);
+			checkAndSwitchToReconfig(currentEvent);
+//		}
 	}
 	
 	private void checkAndSwitchToVC(SimEvent currentEvent){
 		if(this.dDMngMode== DDMngMode.VC){ //we are already in VC
+			checkAndSwitchToReconfig(currentEvent);
 			return;
 		}
-		if(this.directDependingComponentsToWaitForLocalSettingUpDone.isEmpty() && this.isLocalSettingUpDone){
+		if(this.myDependingComponentsToWaitForLocalSettingUpDone.isEmpty() && this.isLocalSettingUpDone){
 			// Good, now we can switch to VC
 			this.dDMngMode = DDMngMode.VC;
 			LOGGER.info("Component:" + this.getSimContainer().getHostComponent().getId() 
@@ -595,12 +623,32 @@ public class VCOnDemandV2 extends Algorithm {
 				dm.setParams(params); //not necessary but ...
 				dm.run();
 			}
+		
+		
+			LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
+			+ " finished local setting up at VT: " + Engine.getDefault().getVirtualTime());
+			// notify depended components through out going components
+			for(OutPort op: this.inScopeOutPorts){
+				Object[] content= new Object[2];
+				content[0]= "notifyOnDemandSettingUpLocalDone";
+				content[1]= this.getSimContainer().getHostComponent();
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
+				LOGGER.info("*** Component: " + this.getSimContainer().getHostComponent().getId()
+						+ "notify depending component: " + op.getPeerPort().getHost().getId());
+			}	
+			
+//			if (allDependingComponentsToWaitForLocalSettingUpDone!=null){// I am the targeted component
+//				allDependingComponentsToWaitForLocalSettingUpDone.remove(getSimContainer().getHostComponent());
+			checkAndSwitchToReconfig(currentEvent);
+//			}
 		}
 	}
 
-	private void checkAndSwithToReconfig(SimEvent currentEvent){
-		if(this.allDependingComponentsToWaitForLocalSettingUpDone.isEmpty())
-			if(! this.startReconf){
+	private void checkAndSwitchToReconfig(SimEvent currentEvent){
+		if(iAmTheTarget){
+			if((this.dDMngMode==DDMngMode.VC) && (! this.startReconf)){
 				LOGGER.info("Component:" + this.getSimContainer().getHostComponent().getId() 
 						+" start reconfigure after setting up on demand, at VT: " + Engine.getDefault().getVirtualTime());
 				if(this.waitingInsteadOfBlocking){
@@ -609,6 +657,7 @@ public class VCOnDemandV2 extends Algorithm {
 					this.startReconfAfterSettingUpOnDemandReady(currentEvent);
 				}
 			}
+		}
 	}
 
 
@@ -1529,6 +1578,9 @@ public class VCOnDemandV2 extends Algorithm {
 		}
 		public Object[] getParams() {
 			return params;
+		}
+		public String getMethodName() {
+			return methodName;
 		}
 		public void setParams(Object[] params) {
 			this.params = params;
