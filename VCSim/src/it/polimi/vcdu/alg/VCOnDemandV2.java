@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Set;
@@ -18,6 +19,7 @@ import it.polimi.vcdu.model.FutureEdge;
 import it.polimi.vcdu.model.FutureEdgeOD;
 import it.polimi.vcdu.model.InPort;
 import it.polimi.vcdu.model.Iteration;
+import it.polimi.vcdu.model.IterationNode;
 import it.polimi.vcdu.model.Message;
 import it.polimi.vcdu.model.OutPort;
 import it.polimi.vcdu.model.PastEdge;
@@ -359,11 +361,11 @@ public class VCOnDemandV2 extends Algorithm {
 					params[0]=new Message("dispatchToAlg",outPort,outPort.getPeerPort(),content);				
 					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
 				}
+
 			}
 	
 			waitingObjFuture.setCurrentEvent(currentEvent);
 			waitingObjPast.setCurrentEvent(currentEvent);
-			
 		}
 //		Collection<Observable> allWaitingObjs = new HashSet<Observable>(waitingForEdgeCreateConditionObjs.values());
 //		for(Observable ob: allWaitingObjs){
@@ -527,20 +529,20 @@ public class VCOnDemandV2 extends Algorithm {
 				" At virtual time: "+Engine.getDefault().getVirtualTime() );
 		
 		assert path.size()>1;
-		PastEdge fe=path.get(path.size()-1);
-		path.remove(fe);
+		PastEdge pe=path.get(path.size()-1);
+		path.remove(pe);
 		Observable o=this.waitingForEdgeCreateConditionObjs.get(path.toString());
 		assert o!=null;
 		if (path.size()==1){
 			WaitingForRootAckPastCreateOD waitingObj=(WaitingForRootAckPastCreateOD)o;			 
-			waitingObj.ackReceived(currentEvent, fe);
+			waitingObj.ackReceived(currentEvent, pe);
 		}
 		else{
 			
 			WaitingForSubAckPastCreateOD waitingObj=(WaitingForSubAckPastCreateOD)o;			 
-			waitingObj.ackReceived(currentEvent, fe);
+			waitingObj.ackReceived(currentEvent, pe);
 		}
-		
+
 	}
 	
 	
@@ -1098,13 +1100,15 @@ public class VCOnDemandV2 extends Algorithm {
 			host.addToOES(lpe);
 			host.addToIES(lfe);
 			host.addToIES(lpe);
-			
-			Object[] content= new Object[2];
-			content[0]= "ackSubTxInit";
-			content[1]=simApp.getTransaction().getRootId();
-			Object[] params= new Object[1];
+
 			//retrieve the parent ouport from the simApp
 			OutPort xop= (OutPort)simApp.getInitiatingMessage().getSource();
+			Object[] content= new Object[3];
+			content[0]= "ackSubTxInit";
+			content[1]=simApp.getTransaction().getRootId();
+			content[2]=xop;
+			Object[] params= new Object[1];
+			
 			params[0]=new Message("dispatchToAlg",xop.getPeerPort(),xop,content);				
 			currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
 			
@@ -1118,9 +1122,51 @@ public class VCOnDemandV2 extends Algorithm {
 
 	}
 	
-	public void ackSubTxInit(SimEvent currentEvent, String rid){
+	public void ackSubTxInit(SimEvent currentEvent, String rid, OutPort op){
 		assert this.dDMngMode!=DDMngMode.DEFAULT;
-		this.removeFutureEdges(currentEvent, rid);
+		
+		//we cannot use 	this.removeFutureEdges(currentEvent, rid);
+		// because the current step of the iteration is not moved forward yet.
+	
+		removeFutureEdgeWhenNotUsedAnyMore(currentEvent, rid, op); 
+	}
+
+	private void removeFutureEdgeWhenNotUsedAnyMore(SimEvent currentEvent,
+			String rid, OutPort op) {
+		Component hostComponent = this.getSimContainer().getHostComponent();
+		if( hostComponent.getNonLocalFeFromIES(rid).isEmpty()){ 
+			HashSet<Transaction> txs = hostComponent.getLocalTransactionsWithRootRidAndPortOp(rid, op);
+			assert txs.size()==1 : "We currently use RPC model, so there should be only one local running tx with a rid";
+			Transaction tx = txs.iterator().next();
+			ArrayList<IterationNode> list = tx.getIteration().getList();
+			assert op==list.get(tx.getIteration().getCurrent_step()).getOutPort() : "This ack should be earlier than notification of end of the subtransaction";
+			List<IterationNode> subListFromNext = list.subList(tx.getIteration().getCurrent_step()+1, list.size()-1);
+			boolean willNotUseThisPortAnyMore=true;
+			for(IterationNode iNode:subListFromNext){
+				if(iNode.getOutPort()== op) {
+					willNotUseThisPortAnyMore = false;
+					break;
+				}
+			}
+			if (willNotUseThisPortAnyMore){
+				// delete the future edge and notify
+				FutureEdge theEdge = null;
+				for (FutureEdge fe: hostComponent.getNonLocalFeFromOES(rid)){
+					if (fe.getFrom()==op){
+						theEdge=fe;
+						break;
+					}
+				}
+				assert theEdge!=null;
+				hostComponent.removeFromOES(theEdge);
+				Object[] content= new Object[2];
+				content[0]= "notifyFutureRemove";
+				content[1]=theEdge;
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+			} //end of if (willNotUseThisPortAnyMore)
+		};
 	}
 	
 	public void notifyFutureRemove(SimEvent currentEvent, FutureEdge fe ){
@@ -1174,7 +1220,8 @@ public class VCOnDemandV2 extends Algorithm {
 				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
 				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);	
 		
-				
+				// we make a remove future edge call, with no harm
+				this.removeFutureEdges(currentEvent, simApp.getTransaction().getRootId());
 				callBack.callback(currentEvent, null);
 			}else{
 				super.onBeingEndingTx(currentEvent, simApp, op, callBack);
@@ -1472,15 +1519,14 @@ public class VCOnDemandV2 extends Algorithm {
 		public void ackReceived(SimEvent currentEvent,FutureEdge fe){
 			this.currentEvent=currentEvent;
 			this.fEdgesToAck.remove(fe);
+			this.checkAndNotify();		
+		}
+		public void checkAndNotify(){
 			this.setChanged();			
 			if (conditionCheck()) {
 				VCOnDemandV2.this.removeFromWaitingForEdgeCreateConditionObjs(this);
 				this.notifyObservers();		
-			}		
-		}
-		public void checkAndNotify(){
-			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();		
+			}				
 		}
 	
 		/**
@@ -1522,8 +1568,7 @@ public class VCOnDemandV2 extends Algorithm {
 		public void ackReceived(SimEvent currentEvent,PastEdge pe){
 			this.currentEvent=currentEvent;
 			this.pEdgesToAck.remove(pe);
-			this.setChanged();			
-			if (conditionCheck()) this.notifyObservers();			
+			this.checkAndNotify();			
 		}
 		public void checkAndNotify(){
 			this.setChanged();			
