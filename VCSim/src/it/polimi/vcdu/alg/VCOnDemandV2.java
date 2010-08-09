@@ -234,7 +234,12 @@ public class VCOnDemandV2 extends Algorithm {
 			
 			//Setting up non local future edges. first decide the corresponding outports.
 			HashSet<OutPort> futures = new HashSet<OutPort>();
-			for(int i=tx.getIteration().getCurrent_step();i<tx.getIteration().getList().size()-1; i++) {
+			int futureBegin = tx.getIteration().getCurrent_step();
+			if(!tx.getIteration().isWorking()){ //the current step of sub transaction must already have been initiated, and have not ended yet.
+				futureBegin++; // we should not create the corresponding future edge if the port will not be used in further steps, 
+								// but let the host of the sub-transaction take care of it.
+			}
+			for(int i=futureBegin;i<tx.getIteration().getList().size()-1; i++) {
 				OutPort outPort = tx.getIteration().getList().get(i).getOutPort();
 				if(this.inScopeOutPorts.contains(outPort)){
 					futures.add(outPort);
@@ -336,9 +341,34 @@ public class VCOnDemandV2 extends Algorithm {
 			
 			
 			if(! tx.getIteration().isWorking()) {
+				// now we may need to do sth. 
 				OutPort outPort = tx.getIteration().getCurrentStep().getOutPort();
+				// first future edge;
+				if(this.inScopeOutPorts.contains(outPort) && ! futures.contains(outPort)){
+					// we should not set up the future edge, because will not use it any more, but 
+					// notify the peer component to do corresponding setup
+					// we do not really create a future edge to the peer, but remember this 
+					// in the corresponding waiting object, and when notified back, we remove this 
+					// Pseudo edge, so that we can keep in line with the waiting and checking mechanism
+					ArrayList<FutureEdge> fpath4RunningSub= new ArrayList<FutureEdge>();
+					FutureEdge localFeOrg = host.getLocalFe(tx.getId());
+					FutureEdgeOD localFeOD = new FutureEdgeOD(localFeOrg);
+					fpath4RunningSub.add(localFeOD);
+					this.waitingForEdgeCreateConditionObjs.put(fpath4RunningSub.toString(), waitingObjFuture);
+					this.onDemandPaths.add(fpath4RunningSub.toString());
+					FutureEdge sfe= new FutureEdge(outPort,outPort.getPeerPort(),tx.getId()); // we do not add it to OES!
+					waitingObjFuture.toWait(sfe);
+					fpath4RunningSub.add(sfe);
+					Object[] content= new Object[2];
+					content[0]= "notifyFutureCreateODRunningSub";
+					content[1]= fpath4RunningSub;
+					Object[] params= new Object[1];			
+					params[0]=new Message("dispatchToAlg",outPort,outPort.getPeerPort(),content);				
+					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				}
+				// then, past edge.
 				if(this.inScopeOutPorts.contains(outPort) && ! pasts.contains(outPort)){
-					// now we need to do sth.
+					
 					// we should not set up past edge from ourPort right now, but 
 					// notify the peer component to do corresponding setup
 					// we do not really create a past edge to the peer, but remember this 
@@ -377,7 +407,153 @@ public class VCOnDemandV2 extends Algorithm {
 //		}
 	}
 	
-	
+	public void notifyFutureCreateODRunningSub(SimEvent currentEvent, ArrayList<FutureEdge> path){
+		LOGGER.info("Being notified to created future edges on demand for running sub transactions. At virtual time: "
+				+Engine.getDefault().getVirtualTime() + "; The path: "+path);
+		assert !this.vCScope.isEmpty();
+		
+		Component host =this.getSimContainer().getHostComponent();		
+		FutureEdge xe= path.get(path.size()-1);
+		//we do not add this pseudo edge to host.addToIES(xe);
+		// we also do not care about past edges ...
+		// but we need to setup local edges and out-going edges according to the iteration
+		
+		
+		// let's find out the local transaction corresponding to this
+		// in our current model (RPC) , it's simple, just to find the one with the same 
+		// root tx id. 
+		HashSet<OutPort> futures = new HashSet<OutPort>();
+		Transaction theOneTx = null;
+		HashSet<Transaction> txs = host.getLocalTransactionsWithRootRid(xe.getRid());
+		
+		if(txs.isEmpty()){
+			// maybe that the initialization of ending of the sub transaction is blocked
+			boolean blocked=false;
+			for(DeferredMethod dm :this.blockedMethodsDueToOnDemandSettingUp){
+				String methodName = dm.getMethodName();
+				if (methodName.equals("onBeingInitSubTx") && 
+						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){ 
+					blocked = true;
+					futures.clear();
+					Iteration iter = ((SimAppTx)dm.getParams()[1]).getTransaction().getIteration();
+					assert iter.getCurrent_step()==0;
+					//we need to set up local edges now,
+					for(int i=1;i<iter.getList().size()-1;i++) {
+						OutPort outPort = iter.getList().get(i).getOutPort();
+						if(this.inScopeOutPorts.contains(outPort)){
+							futures.add(outPort);
+						}
+					};
+					break;
+				}else if(methodName.equals("onEndingSubTx")&& 
+						((SimAppTx)dm.getParams()[1]).getTransaction().getRootId().equals(xe.getRid())){
+					blocked = true;
+					Iteration iter = ((SimAppTx)dm.getParams()[1]).getTransaction().getIteration();
+					assert iter.isEnd();
+					futures.clear();
+					// no future edge from me need to be set
+					// but we setup the local edges that should be removed later. maybe duplicated, but no harm.
+					if (host.getLocalFe(xe.getRid())==null){
+						FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
+						PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
+						host.addToOES(lfe);
+						host.addToOES(lpe);
+						host.addToIES(lfe);
+						host.addToIES(lpe);
+					}
+					break;
+				}
+
+			}
+			// maybe the subtransaction is already ended, but we do not expect it to happen
+			// since messages are kept in order 
+			assert blocked;
+			for(OutPort op: host.f()){//host.f()return all non-local out ports
+				if(this.inScopeOutPorts.contains(op)){
+					futures.add(op);
+				}
+			}
+		}else{
+			assert txs.size()==1; // should not be more than 1 according to our model
+			theOneTx = txs.iterator().next();
+			Iteration iteration = theOneTx.getIteration();
+			int futureBegin=iteration.getCurrent_step();
+			if(!theOneTx.getIteration().isWorking()){ //the current step of sub transaction must already have been initiated, and have not ended yet.
+				futureBegin++; // we should not create the corresponding future edge if the port will not be used in further steps,
+							   // but let the host of the sub-transaction take care of it.
+			}
+			for(int i=futureBegin;i<iteration.getList().size()-1;i++) {
+				OutPort outPort = iteration.getList().get(i).getOutPort();
+				if(this.inScopeOutPorts.contains(outPort)){
+					futures.add(outPort);
+				}
+			};
+			if (host.getLocalFe(xe.getRid())==null){
+				FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),theOneTx.getRootId());
+				PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),theOneTx.getRootId());
+				host.addToOES(lfe);
+				host.addToOES(lpe);
+				host.addToIES(lfe);
+				host.addToIES(lpe);
+			}
+		}
+		
+		WaitingForSubAckFutureCreate waitingObj=new WaitingForSubAckFutureCreate(path);	
+		waitingObj.addObserver(new Observer(){
+			@Override
+			public void update(Observable o, Object arg) {
+				SimEvent currentEvent = ((WaitingForSubAckFutureCreate)o).getCurrentEvent();
+				ArrayList <FutureEdge> path= ((WaitingForSubAckFutureCreate)o).getPath();
+				FutureEdge xe= path.get(path.size()-1);
+				OutPort op=xe.getFrom();
+				Object[] content= new Object[2];
+				content[0]= "ackFutureCreateDDRunningSub";
+				content[1]= path;
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",op.getPeerPort(),op,content);				
+				currentEvent.notifyNoDelay("onSend", VCOnDemandV2.this.getSimContainer().getSimNet(), params);				
+			}			
+		});	
+		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
+		for (OutPort op: futures){
+			Component peerhost = op.getPeerPort().getHost();
+			if(this.vCScope.contains(peerhost)){
+				FutureEdge pe= new FutureEdge(op,op.getPeerPort(),xe.getRid());
+				host.addToOES(pe);
+				waitingObj.toWait(pe);	
+				ArrayList<FutureEdge> pathToSend=new ArrayList<FutureEdge>(path);
+				pathToSend.add(pe);
+				Object[] content= new Object[2];
+				content[0]= "notifyFutureCreate";
+				content[1]= pathToSend;
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				getLOGGER().fine("we are waiting for acks of future edge on demand creation from port: "+ op+
+						" At virtual time: "+Engine.getDefault().getVirtualTime() +
+						"; The path: "+path);
+			}
+		}
+		
+		if(theOneTx!=null && !theOneTx.getIteration().isWorking()){
+			OutPort outPort = theOneTx.getIteration().getCurrentStep().getOutPort();
+			if(this.inScopeOutPorts.contains(outPort) && ! futures.contains(outPort)){
+				// now we need to do sth.
+				FutureEdge sfe= new FutureEdge(outPort,outPort.getPeerPort(),theOneTx.getRootId()); // we do not add it to OES!
+				waitingObj.toWait(sfe);
+				ArrayList<FutureEdge> fpath4RunningSub= new ArrayList<FutureEdge>(path);
+				fpath4RunningSub.add(sfe);
+				Object[] content= new Object[2];
+				content[0]= "notifyFutureCreateODRunningSub";
+				content[1]= fpath4RunningSub;
+				Object[] params= new Object[1];			
+				params[0]=new Message("dispatchToAlg",outPort,outPort.getPeerPort(),content);				
+				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);		
+			}
+		}
+		waitingObj.setCurrentEvent(currentEvent);
+		waitingObj.checkAndNotify();
+	}
 	
 	
 	public void notifyPastCreateODRunningSub(SimEvent currentEvent, ArrayList<PastEdge> path){
@@ -422,14 +598,14 @@ public class VCOnDemandV2 extends Algorithm {
 							pasts.add(outPort);
 						}
 					};
-					
-					FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
-					PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
-					host.addToOES(lfe);
-					host.addToOES(lpe);
-					host.addToIES(lfe);
-					host.addToIES(lpe);
-					
+					if(host.getLocalPe(xe.getRid())==null){
+						FutureEdge lfe= new FutureEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
+						PastEdge lpe= new PastEdge( host.getLocalOutPort(),host.getLocalInPort(),xe.getRid());
+						host.addToOES(lfe);
+						host.addToOES(lpe);
+						host.addToIES(lfe);
+						host.addToIES(lpe);
+					}
 					break;
 				}
 
@@ -521,7 +697,28 @@ public class VCOnDemandV2 extends Algorithm {
 		waitingObj.setCurrentEvent(currentEvent);
 		waitingObj.checkAndNotify();
 	}
-	
+
+	public void ackFutureCreateDDRunningSub(SimEvent currentEvent, ArrayList<FutureEdge> path){
+
+		getLOGGER().info("Ack of non local future edge creation received of path: "+ path+
+				" For running sub, At virtual time: "+Engine.getDefault().getVirtualTime() );
+		
+		assert path.size()>1;
+		FutureEdge fe=path.get(path.size()-1);
+		path.remove(fe);
+		Observable o=this.waitingForEdgeCreateConditionObjs.get(path.toString());
+		assert o!=null;
+		if (path.size()==1){
+			WaitingForRootAckFutureCreate waitingObj=(WaitingForRootAckFutureCreate)o;			 
+			waitingObj.ackReceived(currentEvent, fe);
+		}
+		else{
+			
+			WaitingForSubAckFutureCreate waitingObj=(WaitingForSubAckFutureCreate)o;			 
+			waitingObj.ackReceived(currentEvent, fe);
+		}
+
+	}
 	
 	public void ackPastCreateDDRunningSub(SimEvent currentEvent, ArrayList<PastEdge> path){
 
@@ -1157,14 +1354,15 @@ public class VCOnDemandV2 extends Algorithm {
 						break;
 					}
 				}
-				assert theEdge!=null;
-				hostComponent.removeFromOES(theEdge);
-				Object[] content= new Object[2];
-				content[0]= "notifyFutureRemove";
-				content[1]=theEdge;
-				Object[] params= new Object[1];			
-				params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
-				currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				if( theEdge!=null){ //theEdge could be null when ondemand setting up, the peer component blocked the initialization of the sub. it's OK.
+					hostComponent.removeFromOES(theEdge);
+					Object[] content= new Object[2];
+					content[0]= "notifyFutureRemove";
+					content[1]=theEdge;
+					Object[] params= new Object[1];			
+					params[0]=new Message("dispatchToAlg",op,op.getPeerPort(),content);				
+					currentEvent.notifyNoDelay("onSend", this.getSimContainer().getSimNet(), params);
+				}
 			} //end of if (willNotUseThisPortAnyMore)
 		};
 	}
@@ -1227,6 +1425,7 @@ public class VCOnDemandV2 extends Algorithm {
 				super.onBeingEndingTx(currentEvent, simApp, op, callBack);
 			}
 		}
+		this.removeFutureEdges(currentEvent, simApp.getTransaction().getRootId());
 	}
 	
 	/*public void notifySubTxEnd(SimEvent currentEvent,OutPort op,String rid){
