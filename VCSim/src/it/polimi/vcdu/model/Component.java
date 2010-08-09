@@ -328,7 +328,7 @@ public class Component {
 		for (Iterator<Transaction>it=this.getLocalTransactions().iterator();it.hasNext();)
 		{
 			Transaction t1= it.next();
-			if(t1.getRootId()==rid && this.f(t1).contains(op)){
+			if(t1.getRootId().equals(rid) && this.f(t1).contains(op)){
 				set.add(t1);	
 			}
 				
@@ -340,7 +340,7 @@ public class Component {
 		for (Iterator<Transaction>it=this.getLocalTransactions().iterator();it.hasNext();)
 		{
 			Transaction t1= it.next();
-			if(t1.getRootId()==rid ){
+			if(t1.getRootId().equals(rid) ){
 				set.add(t1);	
 			}
 				
