@@ -107,7 +107,7 @@ public class VCOnDemandV2 extends Algorithm {
 	// I am the targeted component
 	public void onBeingRequestOnDemand(SimEvent currentEvent){
 		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
-		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from"
+		LOGGER.info("*** Request received to achieve freeness. Now set up dynamic dependences from "
 				+ getSimContainer().getHostComponent().getId()
 				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
 		this.iAmTheTarget = true;
