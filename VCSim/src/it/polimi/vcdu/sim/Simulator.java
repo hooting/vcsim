@@ -11,6 +11,9 @@ package it.polimi.vcdu.sim;
 import it.polimi.vcdu.alg.Algorithm;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
+import it.polimi.vcdu.model.Transaction;
+import it.polimi.vcdu.sim.record.Recorder;
+import it.polimi.vcdu.sim.record.ReplayProcess;
 import it.unipr.ce.dsg.deus.core.Engine;
 import it.unipr.ce.dsg.deus.core.Event;
 import it.unipr.ce.dsg.deus.core.InvalidParamsException;
@@ -18,6 +21,7 @@ import it.unipr.ce.dsg.deus.core.SimulationException;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Properties;
@@ -53,13 +57,38 @@ public class Simulator {
 	//protected float maxVirtualTime = 0;
 	protected int seed = ControlParameters.getCurrentParameters().getSeed();
 
+
 	
+
 	public Simulator(Configuration conf,Class<?extends Algorithm> algorithmClass){
 		this.conf=conf;
 		this.algorithmClass = algorithmClass; 
 		initSimObjects();
 		initEvents();
 		initProcesses();
+		this.refProcesses=processes;
+		totalAmountOfWorkCompleted = 0;
+		StopSimulation = false;
+		DefaultSimulator=this;
+
+	}
+	
+	/**
+	 * Replay with the recorder. conf must be corresponding to the one recorded.
+	 * @param conf
+	 * @param algorithmClass
+	 * @param recorder
+	 */
+	public Simulator(Configuration conf,Class<?extends Algorithm> algorithmClass, Recorder recorder){
+		this.recorder = recorder;
+		this.isReplaying = true;
+		this.recorder.reInit();
+		
+		this.conf=conf;
+		this.algorithmClass = algorithmClass; 
+		initSimObjects();
+		initEvents();
+		initProcessesReplay();
 		this.refProcesses=processes;
 		totalAmountOfWorkCompleted = 0;
 		StopSimulation = false;
@@ -151,6 +180,26 @@ public class Simulator {
 		}			
 	}
 
+	private void initProcessesReplay(){
+		processes = new ArrayList<it.unipr.ce.dsg.deus.core.Process>();
+		try {
+			for(it.unipr.ce.dsg.deus.core.Event e:events){
+				SimEvent simEvent = (SimEvent)e;
+				Component host = simEvent.getSimObject().getHostComponent();
+				ArrayList<Event> refEvents = new ArrayList<Event> (1);
+				refEvents.add(e);
+				ArrayList<AbstractMap.SimpleEntry<String, Float>> list = this.recorder.getTotalHistory().get(host.getId());
+				ReplayProcess replayProcess = new ReplayProcess("ReplayProcess", list ,refEvents);
+				e.setParentProcess(replayProcess);
+				processes.add(replayProcess);
+
+			}
+		} catch (InvalidParamsException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}			
+	}
+	
 	public void run(){
 		setStopSimulation(false);
 		totalAmountOfWorkCompleted = 0;
@@ -175,10 +224,50 @@ public class Simulator {
 	}
 	
 	/*
+	 * For recording and replaying
+	 */
+	private Recorder recorder;
+	private boolean isRecording = false;
+	private boolean isReplaying = false;
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	/*
 	 * getters and setters
 	 */
 	
 	
+	public boolean isRecording() {
+		return isRecording;
+	}
+
+	public void setRecording(boolean isRecording) {
+		this.isRecording = isRecording;
+		if(isRecording){
+			recorder = new Recorder();
+		}
+	}
+
+	public boolean isReplaying() {
+		return isReplaying;
+	}
+
+	public void setReplaying(boolean isReplaying) {
+		this.isReplaying = isReplaying;
+	}
+
+	public Recorder getRecorder() {
+		return recorder;
+	}
+
 	/**
 	 * @return the conf
 	 */
