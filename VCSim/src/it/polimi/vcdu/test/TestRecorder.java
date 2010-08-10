@@ -61,17 +61,20 @@ public class TestRecorder {
 
 
 		ControlParameters.getCurrentParameters().setMaxVirtualTime(10000f);
+		ControlParameters.getCurrentParameters().setNetworkDelay(0f);
 		
-		int nNodes = 4;
+		RequestTime = 50f*5;
+		String targetString="C5";
+		
+		int nNodes = 8;
 		int nEdges = 2;
 
 //		int nNodes = 2;
 //		int nEdges = 1;
 		Graph<Number,Number> configGraph = initConfigGraph(nNodes, nEdges);
 
-		ControlParameters.getCurrentParameters().setNetworkDelay(0);
-		RequestTime = 332.7979f;
-		String targetString="C1";
+
+		ControlParameters.getCurrentParameters().setSeed(-1555590367);
 //		
 		reInit();
 		Configuration conf = new Configuration(configGraph);
