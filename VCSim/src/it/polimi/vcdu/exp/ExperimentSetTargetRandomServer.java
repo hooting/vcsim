@@ -1,6 +1,6 @@
 package it.polimi.vcdu.exp;
 
-import it.polimi.vcdu.exp.ExperimentV2.Result;
+import it.polimi.vcdu.exp.ExperimentRecordReplay.Result;
 import it.polimi.vcdu.sim.ControlParameters;
 import it.polimi.vcdu.sim.SimNet;
 import it.polimi.vcdu.util.TopologyGenerator;
@@ -93,7 +93,8 @@ public class ExperimentSetTargetRandomServer {
 			
 			SimNet.reInit();
 			boolean waitingVC=false;
-			ExperimentV2 exp= new ExperimentV2(this.graph,this.targetComponent,reqTime,waitingVC);
+			//ExperimentV2 exp= new ExperimentV2(this.graph,this.targetComponent,reqTime,waitingVC);
+			ExperimentRecordReplay exp= new ExperimentRecordReplay(this.graph,this.targetComponent,reqTime,waitingVC);
 			exp.run();
 			Result res= exp.getResult();
 
