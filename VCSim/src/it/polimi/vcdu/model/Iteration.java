@@ -31,12 +31,23 @@ public class Iteration {
 		this.localProcessingTime = localProcessingTime;
 		list=genRandIteration(localProcessingTime,host.getOutPorts().size(), host);
 	}
+	
 	/**
+	 * for replay
 	 * @param localProcessingTime
-	 * @param nOutPorts
-	 * @param nSubTx
-	 * @return
+	 * @param iterNodeList
 	 */
+	public Iteration(float localProcessingTime, ArrayList<IterationNode> iterNodeList){
+		current_step=0;
+		this.localProcessingTime = localProcessingTime;
+		this.list = new ArrayList<IterationNode>(iterNodeList);
+	}
+	
+	// for testing only:
+//	private static int nTimes =0;
+//	private static int totalSubs =0;
+	
+	
 	private ArrayList<IterationNode> genRandIteration(float localProcessingTime, int nOutPorts,Component host) {
 		ArrayList<IterationNode> randList = new ArrayList<IterationNode>();
 		float delay = 0;
@@ -47,13 +58,21 @@ public class Iteration {
 			randList.add(node);
 			if(nOutPorts == 0) break;
 			
-			delay=RandUtils.RandDelay()/nOutPorts;
+			//interesting, I tried to find out this value (0.482f) is good to make one sub-transaction 
+			// per out port in average, at least good for nEdge = 2, 3, 4 .
+			delay=RandUtils.RandDelay()/(nOutPorts+0.482f); 
 			totalDelay+=delay;
 			int outPortIndex= RandUtils.selectPort(nOutPorts);
 			selectedOp =(OutPort) host.getOutPorts().get(outPortIndex);
 		} while (totalDelay<localProcessingTime);
 
 		randList.add(new IterationNode(localProcessingTime+delay-totalDelay,null));
+		
+//		if(nOutPorts!=0){
+//			nTimes++;
+//			totalSubs += randList.size()-2;
+//			System.out.println("+++++++++++++++++++++accumulated average subs per tx generated: "+ ((float)totalSubs)/nTimes);
+//		}
 		return randList;
 	}
 	public void add(float delay, OutPort outPort){
