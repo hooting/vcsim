@@ -7,13 +7,13 @@ import java.io.IOException;
 public class TimelinessDisruptionScale8TargetC1 {
 	public static void main(String[] args) {
 		//the number of edges is the same for each graph
-		int nEdges=3;
+		int nEdges=2;
 		int nComponents=8;
 		int masterSeed=123456;		
 		int nRun=50;
 		float localProcessingTime=50;
 		float meanArrival=25;
-		float delay=5;			
+		float delay=0;			
 		String target="C1";
 		ExperimentSet expSet= new ExperimentSet(nComponents, nEdges, nRun, 
 				delay,meanArrival, localProcessingTime, masterSeed, 
