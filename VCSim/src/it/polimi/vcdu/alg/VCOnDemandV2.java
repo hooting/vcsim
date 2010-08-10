@@ -990,9 +990,17 @@ public class VCOnDemandV2 extends Algorithm {
 			assert ! waitingInsteadOfBlocking;
 			super.onInitRootTx(currentEvent, simApp, callBack);
 			return;
+		}else if(this.iAmTheTarget && this.dDMngMode == DDMngMode.ONDEMAND){
+				Object[] params = new Object[3];
+				params[0] = null; // currentEvent to be set later when called;
+				params[1] = simApp;
+				params[2] = callBack;
+				DeferredMethod dm = new DeferredMethod(this, "onInitRootTx", params);
+				this.blockedMethodsDueToOnDemandSettingUp.add(dm);
+				return;
 		}
 		
-		//For both DDMngMode.ONDEMAND and DDMngMode.VC, we do the same as VersionConsistency but 
+		//For both DDMngMode.VC and DDMngMode.ONDEMAND (!iAmTheTarget), we do the same as VersionConsistency but 
 		//with considerations of scope
 		
 		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
