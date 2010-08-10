@@ -1841,10 +1841,12 @@ public class VCOnDemandV2 extends Algorithm {
 				onBeingInitSubTx(currentEvent,simApp,callBack);
 			}else if(methodName.equals("onEndingSubTx")){
 				onEndingSubTx(currentEvent,simApp,callBack);
-			}else{
-				assert (methodName.equals("onEndingRootTx"));
+			}else if (methodName.equals("onEndingRootTx")){
 				onEndingRootTx(currentEvent,simApp,callBack);
-			}	
+			}else {
+				assert (methodName.equals("onInitRootTx"));
+				onInitRootTx(currentEvent,simApp,callBack);
+			}
 		}
 		public Object[] getParams() {
 			return params;
