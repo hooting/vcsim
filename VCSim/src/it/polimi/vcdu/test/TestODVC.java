@@ -61,7 +61,7 @@ public class TestODVC {
 
 		ControlParameters.getCurrentParameters().setMaxVirtualTime(200000f);
 		
-		int nNodes = 14;
+		int nNodes = 8;
 		int nEdges = 2;
 
 //		int nNodes = 2;
@@ -69,8 +69,8 @@ public class TestODVC {
 		Graph<Number,Number> configGraph = initConfigGraph(nNodes, nEdges);
 
 		ControlParameters.getCurrentParameters().setNetworkDelay(0);
-		RequestTime = 132.7979f;
-		String targetString="C1";
+		RequestTime = 332.7979f;
+		String targetString="C3";
 //		
 		reInit();
         expVCOD_VC(configGraph, targetString);
@@ -80,7 +80,7 @@ public class TestODVC {
 		
 		reInit();
 		Configuration conf2 = new Configuration(configGraph);
-		Component targetedComponent2 = conf2.getComponentFromId("C1"); //C2
+		Component targetedComponent2 = conf2.getComponentFromId(targetString); //C2
 
 		exp_quiescence(conf2,targetedComponent2);
 	}
