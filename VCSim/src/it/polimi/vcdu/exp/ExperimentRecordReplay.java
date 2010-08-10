@@ -46,7 +46,7 @@ public class ExperimentRecordReplay {
 	}
 	
 	public void run(){
-		ControlParameters.getCurrentParameters().setMaxVirtualTime(10000f);//need to set in the ControlParameters
+		ControlParameters.getCurrentParameters().setMaxVirtualTime(20000f);//need to set in the ControlParameters
 		Recorder recorder = expRecord();
 		
 		reInit();
@@ -80,7 +80,7 @@ public class ExperimentRecordReplay {
 		
 		sim.setRecording(true);
 		Recorder recorder = sim.getRecorder();
-		recorder.setMaxNumberOfTxs(100000); //need to set in the ControlParameters
+		recorder.setMaxNumberOfTxs(20000); //need to set in the ControlParameters
 		
 		sim.run();
 		
