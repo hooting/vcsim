@@ -405,7 +405,7 @@ public class Component {
 		float workingTime = tx.getIteration().getWorkingTime();
 		float blockedTime = tx.getIteration().getBlockedTime();
 		
-		assert ! TxTimeRecord.txInHistory(tx, this.txHistory) : "Tx already in history!";
+//		assert ! TxTimeRecord.txInHistory(tx, this.txHistory) : "Tx already in history!";
 		
 		TxTimeRecord txTimeRecord = new TxTimeRecord(tx.getAncestors(),workingTime,blockedTime);
 		txHistory.add(txTimeRecord);

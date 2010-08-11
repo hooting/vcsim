@@ -80,7 +80,7 @@ public class ExperimentRecordReplay {
 		
 		sim.setRecording(true);
 		Recorder recorder = sim.getRecorder();
-		recorder.setMaxNumberOfTxs(20000); //need to set in the ControlParameters
+		recorder.setMaxNumberOfTxs(100000); //need to set in the ControlParameters
 		
 		sim.run();
 		

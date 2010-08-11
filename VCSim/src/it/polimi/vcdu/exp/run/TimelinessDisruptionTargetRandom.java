@@ -14,19 +14,22 @@ public class TimelinessDisruptionTargetRandom {
 		int nRun=100;
 		float localProcessingTime=50;
 		float meanArrival=25;
-		float delay=1;			
-		ExperimentSetTargetRandomServer expSet= new ExperimentSetTargetRandomServer(nComponents, nEdges, nRun, 
-				delay,meanArrival, localProcessingTime, masterSeed, 
-				"resultsExperiments/timelinessDisruption/V"+nComponents+"E"+nEdges+"D_"+delay+"N"+nRun+"TargetRandomServerNodes");
-		try {
-			expSet.run();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+		//float delay=5;			
+		float[] delays = new float[]{100};
+		for(int i = 0; i< delays.length;i++){
+			float delay = delays[i];
+			ExperimentSetTargetRandomServer expSet= new ExperimentSetTargetRandomServer(nComponents, nEdges, nRun, 
+					delay,meanArrival, localProcessingTime, masterSeed, 
+					"resultsExperiments/timelinessDisruption/V"+nComponents+"E"+nEdges+"D"+delay+"N"+nRun+"TargetRandomServerNodes");
+			try {
+				expSet.run();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			System.gc();
 		}
-		
-		System.gc();
-		
 		System.out.println("Experiment Completed");
 	}
 }
