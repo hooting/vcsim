@@ -9,7 +9,6 @@ import it.polimi.vcdu.sim.CallBack;
 import it.polimi.vcdu.sim.SimAppTx;
 import it.polimi.vcdu.sim.SimContainer;
 import it.polimi.vcdu.sim.SimEvent;
-import it.polimi.vcdu.sim.Simulator;
 import it.unipr.ce.dsg.deus.core.Engine;
 
 import java.util.ArrayList;
