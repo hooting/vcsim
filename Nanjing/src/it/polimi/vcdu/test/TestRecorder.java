@@ -2,7 +2,7 @@ package it.polimi.vcdu.test;
 
 import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
-import it.polimi.vcdu.alg.VCOnDemandV2;
+import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
@@ -198,12 +198,12 @@ private static void expVCOD_VC(Graph<Number, Number> configGraph,
 			
 			Configuration conf = new Configuration(configGraph);
 			
-			VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.VC;
-			VCOnDemandV2.DefaultVCScope = new HashSet<Component> (conf.getComponents());
+			VersionConsistencyOnDemand.DefaultDDMngMode = VersionConsistencyOnDemand.DDMngMode.VC;
+			VersionConsistencyOnDemand.DefaultVCScope = new HashSet<Component> (conf.getComponents());
 			
 			Component targetedComponent = conf.getComponentFromId(targetString); //C2
-			Simulator sim = new Simulator(conf, VCOnDemandV2.class, recorder);
-			//Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+			Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class, recorder);
+			//Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class);
 			SimContainer simContainer = sim.getSimContainer(targetedComponent);
 			
 			try {
@@ -275,11 +275,11 @@ private static void expVCOD(Graph<Number, Number> configGraph,
 			Configuration conf = new Configuration(configGraph);
 			
 			
-			VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.DEFAULT;
-			VCOnDemandV2.DefaultVCScope = null;
+			VersionConsistencyOnDemand.DefaultDDMngMode = VersionConsistencyOnDemand.DDMngMode.DEFAULT;
+			VersionConsistencyOnDemand.DefaultVCScope = null;
 			
 			Component targetedComponent = conf.getComponentFromId(targetString); //C2
-			Simulator sim = new Simulator(conf, VCOnDemandV2.class, recorder);
+			Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class, recorder);
 			SimContainer simContainer = sim.getSimContainer(targetedComponent);
 			
 			try {

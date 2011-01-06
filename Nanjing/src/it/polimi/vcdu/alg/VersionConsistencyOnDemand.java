@@ -1,17 +1,5 @@
 package it.polimi.vcdu.alg;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Observable;
-import java.util.Observer;
-import java.util.Set;
-import java.util.logging.Logger;
-
-
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.DynamicEdge;
@@ -32,14 +20,24 @@ import it.polimi.vcdu.sim.SimContainer;
 import it.polimi.vcdu.sim.SimEvent;
 import it.unipr.ce.dsg.deus.core.Engine;
 
-public class VCOnDemandV2 extends Algorithm {
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
+import java.util.Set;
+import java.util.logging.Logger;
+
+public class VersionConsistencyOnDemand extends Algorithm {
 	
 	public static DDMngMode DefaultDDMngMode = DDMngMode.DEFAULT;
 	public static HashSet<Component> DefaultVCScope = null;
 
 	
 
-	private final static Logger LOGGER = Logger.getLogger(VCOnDemandV2.class.getName());
+	private final static Logger LOGGER = Logger.getLogger(VersionConsistencyOnDemand.class.getName());
 	@Override
 	protected Logger getLOGGER() {		
 		return LOGGER;
@@ -83,7 +81,7 @@ public class VCOnDemandV2 extends Algorithm {
 //	private HashSet<Component> allDependingComponentsToWaitForLocalSettingUpDone; //for targeted component only.  Once empty, beging to achieving freeness
 	
 	
-	public VCOnDemandV2(SimContainer simCon) {
+	public VersionConsistencyOnDemand(SimContainer simCon) {
 		super(simCon);
 		//dDMngMode  = DDMngMode.DEFAULT;
 		this.dDMngMode=DefaultDDMngMode;
@@ -511,7 +509,7 @@ public class VCOnDemandV2 extends Algorithm {
 				content[1]= path;
 				Object[] params= new Object[1];			
 				params[0]=new Message("dispatchToAlg",op.getPeerPort(),op,content);				
-				currentEvent.notifyNoDelay("onSend", VCOnDemandV2.this.getSimContainer().getSimNet(), params);				
+				currentEvent.notifyNoDelay("onSend", VersionConsistencyOnDemand.this.getSimContainer().getSimNet(), params);				
 			}			
 		});	
 		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
@@ -649,7 +647,7 @@ public class VCOnDemandV2 extends Algorithm {
 				content[1]= path;
 				Object[] params= new Object[1];			
 				params[0]=new Message("dispatchToAlg",op.getPeerPort(),op,content);				
-				currentEvent.notifyNoDelay("onSend", VCOnDemandV2.this.getSimContainer().getSimNet(), params);				
+				currentEvent.notifyNoDelay("onSend", VersionConsistencyOnDemand.this.getSimContainer().getSimNet(), params);				
 			}			
 		});	
 		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
@@ -1114,7 +1112,7 @@ public class VCOnDemandV2 extends Algorithm {
 				content[1]= path;
 				Object[] params= new Object[1];			
 				params[0]=new Message("dispatchToAlg",op.getPeerPort(),op,content);				
-				currentEvent.notifyNoDelay("onSend", VCOnDemandV2.this.getSimContainer().getSimNet(), params);				
+				currentEvent.notifyNoDelay("onSend", VersionConsistencyOnDemand.this.getSimContainer().getSimNet(), params);				
 			}			
 		});	
 		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
@@ -1198,7 +1196,7 @@ public class VCOnDemandV2 extends Algorithm {
 				content[1]= path;
 				Object[] params= new Object[1];			
 				params[0]=new Message("dispatchToAlg",op.getPeerPort(),op,content);				
-				currentEvent.notifyNoDelay("onSend", VCOnDemandV2.this.getSimContainer().getSimNet(), params);				
+				currentEvent.notifyNoDelay("onSend", VersionConsistencyOnDemand.this.getSimContainer().getSimNet(), params);				
 			}			
 		});	
 		this.waitingForEdgeCreateConditionObjs.put(path.toString(), waitingObj);
@@ -1629,7 +1627,7 @@ public class VCOnDemandV2 extends Algorithm {
 		public void checkAndNotify(){
 			this.setChanged();			
 			if (conditionCheck()) {
-				VCOnDemandV2.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				VersionConsistencyOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
 				this.notifyObservers();		
 			}
 		}
@@ -1683,7 +1681,7 @@ public class VCOnDemandV2 extends Algorithm {
 		public void checkAndNotify(){
 			this.setChanged();			
 			if (conditionCheck()) {
-				VCOnDemandV2.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				VersionConsistencyOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
 				this.notifyObservers();		
 			}		
 		}
@@ -1731,7 +1729,7 @@ public class VCOnDemandV2 extends Algorithm {
 		public void checkAndNotify(){
 			this.setChanged();			
 			if (conditionCheck()) {
-				VCOnDemandV2.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				VersionConsistencyOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
 				this.notifyObservers();		
 			}				
 		}
@@ -1780,7 +1778,7 @@ public class VCOnDemandV2 extends Algorithm {
 		public void checkAndNotify(){
 			this.setChanged();			
 			if (conditionCheck()) {
-				VCOnDemandV2.this.removeFromWaitingForEdgeCreateConditionObjs(this);
+				VersionConsistencyOnDemand.this.removeFromWaitingForEdgeCreateConditionObjs(this);
 				this.notifyObservers();		
 			}	
 		}

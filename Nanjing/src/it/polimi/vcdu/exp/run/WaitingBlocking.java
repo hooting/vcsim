@@ -1,6 +1,6 @@
 package it.polimi.vcdu.exp.run;
 
-import it.polimi.vcdu.alg.VCOnDemandV2;
+import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
@@ -110,11 +110,11 @@ public class WaitingBlocking {
 				Configuration conf = new Configuration(configGraph);
 				
 				
-				VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.DEFAULT;
-				VCOnDemandV2.DefaultVCScope = null;
+				VersionConsistencyOnDemand.DefaultDDMngMode = VersionConsistencyOnDemand.DDMngMode.DEFAULT;
+				VersionConsistencyOnDemand.DefaultVCScope = null;
 				
 				Component targetedComponent = conf.getComponentFromId(targetString); //C2
-				Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+				Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class);
 				SimContainer simContainer = sim.getSimContainer(targetedComponent);
 				
 				try {

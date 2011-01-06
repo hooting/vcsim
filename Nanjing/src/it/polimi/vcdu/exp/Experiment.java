@@ -8,7 +8,7 @@ import edu.uci.ics.jung.graph.Graph;
 
 import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
-import it.polimi.vcdu.alg.VCOnDemandV2;
+import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.alg.VersionConsistency;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
@@ -226,7 +226,7 @@ public class Experiment {
 		Configuration conf = new Configuration(configGraph);
 		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
 		//Simulator sim = new Simulator (conf,VCOnDemand.class);
-		Simulator sim = new Simulator (conf,VCOnDemandV2.class);
+		Simulator sim = new Simulator (conf,VersionConsistencyOnDemand.class);
 		SimContainer simContainer= sim.getSimContainer(targetedComponent);
 		
 		try {

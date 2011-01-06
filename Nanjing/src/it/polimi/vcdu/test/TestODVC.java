@@ -2,7 +2,7 @@ package it.polimi.vcdu.test;
 
 import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
-import it.polimi.vcdu.alg.VCOnDemandV2;
+import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
@@ -51,7 +51,7 @@ public class TestODVC {
 //		prepLogging(Level.WARNING);
 //		prepLogging(Level.INFO);
 		
-		Logger logger = Logger.getLogger("it.polimi.vcdu.alg.VCOnDemandV2");
+		Logger logger = Logger.getLogger("it.polimi.vcdu.alg.VersionConsistencyOnDemand");
 		logger.setLevel(Level.FINEST);
 //		java.util.logging.Handler [] handlers = logger.getHandlers();
 //		if (handlers.length == 0) logger.addHandler(new java.util.logging.ConsoleHandler());
@@ -92,12 +92,12 @@ public class TestODVC {
 				
 				Configuration conf = new Configuration(configGraph);
 				
-				VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.VC;
-				VCOnDemandV2.DefaultVCScope = new HashSet<Component> (conf.getComponents());
+				VersionConsistencyOnDemand.DefaultDDMngMode = VersionConsistencyOnDemand.DDMngMode.VC;
+				VersionConsistencyOnDemand.DefaultVCScope = new HashSet<Component> (conf.getComponents());
 				
 				Component targetedComponent = conf.getComponentFromId(targetString); //C2
-				Simulator sim = new Simulator(conf, VCOnDemandV2.class);
-				//Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+				Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class);
+				//Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class);
 				SimContainer simContainer = sim.getSimContainer(targetedComponent);
 				
 				try {
@@ -169,11 +169,11 @@ public class TestODVC {
 				Configuration conf = new Configuration(configGraph);
 				
 				
-				VCOnDemandV2.DefaultDDMngMode = VCOnDemandV2.DDMngMode.DEFAULT;
-				VCOnDemandV2.DefaultVCScope = null;
+				VersionConsistencyOnDemand.DefaultDDMngMode = VersionConsistencyOnDemand.DDMngMode.DEFAULT;
+				VersionConsistencyOnDemand.DefaultVCScope = null;
 				
 				Component targetedComponent = conf.getComponentFromId(targetString); //C2
-				Simulator sim = new Simulator(conf, VCOnDemandV2.class);
+				Simulator sim = new Simulator(conf, VersionConsistencyOnDemand.class);
 				SimContainer simContainer = sim.getSimContainer(targetedComponent);
 				
 				try {
