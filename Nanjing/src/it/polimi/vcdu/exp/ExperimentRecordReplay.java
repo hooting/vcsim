@@ -10,7 +10,6 @@ import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
 import it.polimi.vcdu.alg.VCOnDemandV2;
 import it.polimi.vcdu.alg.VersionConsistency;
-import it.polimi.vcdu.alg.VCOnDemand;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
