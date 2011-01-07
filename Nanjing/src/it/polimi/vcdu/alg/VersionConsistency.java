@@ -19,8 +19,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Observable;
 import java.util.Observer;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 
@@ -33,7 +31,7 @@ public class VersionConsistency extends Algorithm {
 
 	private final static Logger LOGGER = Logger.getLogger(VersionConsistency.class.getName());
 
-	private float VersConsistencyReqTime = -1.0f;
+//	private float VersConsistencyReqTime = -1.0f;
 	private boolean startReconf=false;
 	private HashSet<String> FPSet = new HashSet<String>();
 	private boolean waitingInsteadOfBlocking=false;
@@ -47,7 +45,7 @@ public class VersionConsistency extends Algorithm {
 	public void startReconf(SimEvent currentEvent){
 		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
 				"virtual time "+Engine.getDefault().getVirtualTime());
-		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
+//		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
 		this.startReconf=true;
 		this.collectReqSettingCallBack.callback(currentEvent, null);
 		getLOGGER().info(
@@ -60,7 +58,7 @@ public class VersionConsistency extends Algorithm {
 	public void startReconfWaiting(SimEvent currentEvent){
 		getLOGGER().info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
 				"virtual time "+Engine.getDefault().getVirtualTime());
-		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
+//		this.VersConsistencyReqTime=Engine.getDefault().getVirtualTime();
 		this.startReconf=true;
 		this.waitingInsteadOfBlocking=true;
 		this.collectReqSettingCallBack.callback(currentEvent, null);

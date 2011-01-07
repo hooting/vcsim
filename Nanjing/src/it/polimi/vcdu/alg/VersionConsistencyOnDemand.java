@@ -60,7 +60,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	public enum DDMngMode{DEFAULT, ONDEMAND, VC}; 
 	private DDMngMode dDMngMode = DDMngMode.DEFAULT;
 		
-	private float vCOndemandReqTime = -1.0f;
+//	private float vCOndemandReqTime = -1.0f;
 	
 	private HashSet<Component> vCScope;
 	private HashSet<OutPort> requestOnDemandToWait;
@@ -104,7 +104,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	
 	// I am the targeted component
 	public void onBeingRequestOnDemand(SimEvent currentEvent){
-		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
+//		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
 		LOGGER.info("*** Request received to achieve freeness. Now set up dynamic dependences from "
 				+ getSimContainer().getHostComponent().getId()
 				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
@@ -118,7 +118,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	
 	// I am the targeted component, using waiting strategy insteady of blocking;
 	public void onBeingRequestOnDemandWaiting(SimEvent currentEvent){
-		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
+//		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
 		this.waitingInsteadOfBlocking = true;
 		LOGGER.info("*** Request received to achieve freeness by waiting istead of blocking. Now setting up dynamic dependences from"
 				+ getSimContainer().getHostComponent().getId()
@@ -176,7 +176,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		assert this.dDMngMode==DDMngMode.DEFAULT;
 		this.dDMngMode = DDMngMode.ONDEMAND;
 		
-		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
+//		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
 		
 		// ask all up stream components to vc ondemand
 		for (InPort ip: this.inScopeInPorts){
@@ -882,7 +882,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	
 	public static HashSet<Component> computeAffectedScope(Component com, Configuration conf){
 		HashSet<Component> resultScope = new HashSet<Component>();
-		HashSet<Component> allComponents = new HashSet<Component>(conf.getComponents());
+//		HashSet<Component> allComponents = new HashSet<Component>(conf.getComponents());
 		boolean hasMore = false;
 		resultScope.add(com);
 		ArrayList<Component> lastAdded = new ArrayList<Component>();
@@ -946,7 +946,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 				"virtual time "+Engine.getDefault().getVirtualTime());
 		
 		this.startReconf=true;
-		this.vCOndemandReqTime = Engine.getDefault().getVirtualTime();
+//		this.vCOndemandReqTime = Engine.getDefault().getVirtualTime();
 		this.collectReqSettingCallBack.callback(currentEvent, null);
 		getLOGGER().info(
 				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
@@ -993,7 +993,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 				params[0] = null; // currentEvent to be set later when called;
 				params[1] = simApp;
 				params[2] = callBack;
-				DeferredMethod dm = new DeferredMethod(this, "onInitRootTx", params);
+				DeferredMethod dm = new DeferredMethod("onInitRootTx", params);
 				this.blockedMethodsDueToOnDemandSettingUp.add(dm);
 				return;
 		}
@@ -1280,7 +1280,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 			params[0] = null; // currentEvent to be set later when called;
 			params[1] = simApp;
 			params[2] = callBack;
-			DeferredMethod dm = new DeferredMethod(this, "onBeingInitSubTx", params);
+			DeferredMethod dm = new DeferredMethod("onBeingInitSubTx", params);
 			this.blockedMethodsDueToOnDemandSettingUp.add(dm);
 			return;
 		}
@@ -1396,7 +1396,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 			params[0] = null; // currentEvent to be set later when called;
 			params[1] = simApp;
 			params[2] = callBack;
-			DeferredMethod dm = new DeferredMethod(this, "onEndingSubTx", params);
+			DeferredMethod dm = new DeferredMethod("onEndingSubTx", params);
 			this.blockedMethodsDueToOnDemandSettingUp.add(dm);
 			return;
 		}
@@ -1512,7 +1512,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 			params[0] = null; // currentEvent to be set later when called;
 			params[1] = simApp;
 			params[2] = callBack;
-			DeferredMethod dm = new DeferredMethod(this, "onEndingRootTx", params);
+			DeferredMethod dm = new DeferredMethod("onEndingRootTx", params);
 			this.blockedMethodsDueToOnDemandSettingUp.add(dm);
 			return;
 		}
@@ -1819,12 +1819,12 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	
 	
 	private class DeferredMethod {
-		Object object;
+//		Object object;
 		String methodName;
 		Object[] params;
 		
-		public DeferredMethod(Object obj, String mtdname, Object[] params){
-			this.object = obj;
+		public DeferredMethod(String mtdname, Object[] params){
+//			this.object = obj;
 			this.methodName = mtdname;
 			this.params = params;
 		}

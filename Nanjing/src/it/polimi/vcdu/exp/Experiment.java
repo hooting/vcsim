@@ -1,15 +1,9 @@
 package it.polimi.vcdu.exp;
 
-import java.util.ArrayList;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
-import edu.uci.ics.jung.graph.Graph;
-
 import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
-import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.alg.VersionConsistency;
+import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
 import it.polimi.vcdu.model.Message;
@@ -24,6 +18,11 @@ import it.polimi.vcdu.util.RandUtils;
 import it.unipr.ce.dsg.deus.core.Engine;
 import it.unipr.ce.dsg.deus.core.Event;
 import it.unipr.ce.dsg.deus.core.InvalidParamsException;
+
+import java.util.ArrayList;
+import java.util.logging.Logger;
+
+import edu.uci.ics.jung.graph.Graph;
 
 
 

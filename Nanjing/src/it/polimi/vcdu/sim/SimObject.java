@@ -4,7 +4,6 @@
 package it.polimi.vcdu.sim;
 
 
-import it.polimi.vcdu.alg.DefaultAlg;
 import it.polimi.vcdu.model.Component;
 
 import java.util.logging.Logger;

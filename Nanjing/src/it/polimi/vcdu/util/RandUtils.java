@@ -3,10 +3,10 @@
  */
 package it.polimi.vcdu.util;
 
+import it.polimi.vcdu.sim.ControlParameters;
+
 import java.util.logging.Logger;
 
-import it.polimi.vcdu.sim.ControlParameters;
-import it.unipr.ce.dsg.deus.core.Engine;
 import cern.jet.random.Normal;
 import cern.jet.random.engine.DRand;
 /**

@@ -51,7 +51,7 @@ public class TestThree  {
 		
 		Logger logger = Logger.getLogger("it.polimi.vcdu");
 		logger.setLevel(Level.FINEST);
-		java.util.logging.Handler [] handlers = logger.getHandlers();
+//		java.util.logging.Handler [] handlers = logger.getHandlers();
 		try {
 			java.util.logging.FileHandler fh = new java.util.logging.FileHandler("simlog.txt");
 			fh.setFormatter(new java.util.logging.SimpleFormatter());

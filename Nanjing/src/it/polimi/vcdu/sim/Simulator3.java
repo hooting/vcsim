@@ -8,7 +8,6 @@ package it.polimi.vcdu.sim;
  *
  */
 
-import it.polimi.vcdu.alg.DefaultAlg;
 import it.polimi.vcdu.alg.VersionConsistency;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;

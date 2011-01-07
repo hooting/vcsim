@@ -1,6 +1,5 @@
 package it.polimi.vcdu.test;
 
-import it.polimi.vcdu.alg.Measuring;
 import it.polimi.vcdu.alg.Quiescence;
 import it.polimi.vcdu.alg.VersionConsistencyOnDemand;
 import it.polimi.vcdu.model.Component;

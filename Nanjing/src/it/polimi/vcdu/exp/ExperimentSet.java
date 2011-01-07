@@ -5,7 +5,6 @@ import it.polimi.vcdu.sim.ControlParameters;
 import it.polimi.vcdu.sim.SimNet;
 import it.polimi.vcdu.util.TopologyGenerator;
 
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Random;
@@ -15,8 +14,6 @@ import org.apache.commons.collections15.Factory;
 import edu.uci.ics.jung.graph.DirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.Graph;
 import edu.uci.ics.jung.graph.util.Graphs;
-import edu.uci.ics.jung.io.GraphMLWriter;
-import edu.uci.ics.jung.visualization.decorators.ToStringLabeller;
 
 public class ExperimentSet {
 

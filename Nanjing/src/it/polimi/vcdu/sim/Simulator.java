@@ -11,7 +11,6 @@ package it.polimi.vcdu.sim;
 import it.polimi.vcdu.alg.Algorithm;
 import it.polimi.vcdu.model.Component;
 import it.polimi.vcdu.model.Configuration;
-import it.polimi.vcdu.model.Transaction;
 import it.polimi.vcdu.sim.record.Recorder;
 import it.polimi.vcdu.sim.record.ReplayProcess;
 import it.unipr.ce.dsg.deus.core.Engine;

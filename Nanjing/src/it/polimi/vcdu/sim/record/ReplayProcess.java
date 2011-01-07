@@ -1,15 +1,13 @@
 package it.polimi.vcdu.sim.record;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Properties;
-import java.util.AbstractMap.SimpleEntry;
-
 import it.unipr.ce.dsg.deus.core.Engine;
 import it.unipr.ce.dsg.deus.core.Event;
 import it.unipr.ce.dsg.deus.core.InvalidParamsException;
-import it.unipr.ce.dsg.deus.core.Node;
 import it.unipr.ce.dsg.deus.core.Process;
+
+import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
+import java.util.Iterator;
 
 public class ReplayProcess extends Process {
 

@@ -5,7 +5,6 @@ import it.polimi.vcdu.model.Iteration;
 import it.polimi.vcdu.model.IterationNode;
 import it.polimi.vcdu.model.OutPort;
 import it.polimi.vcdu.model.Transaction;
-import it.polimi.vcdu.sim.ControlParameters;
 
 import java.util.ArrayList;
 

@@ -1,6 +1,5 @@
 package it.polimi.vcdu.exp.run;
 
-import it.polimi.vcdu.exp.ExperimentSet;
 import it.polimi.vcdu.exp.ExperimentSetTargetRandomServer;
 
 import java.io.IOException;

@@ -1,7 +1,6 @@
 package it.polimi.vcdu.exp;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 /*
  * Running contemporary the Timeliness and Disruption Experiments

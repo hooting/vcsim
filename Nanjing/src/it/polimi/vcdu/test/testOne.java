@@ -7,12 +7,8 @@ import it.polimi.vcdu.sim.Simulator;
 import it.polimi.vcdu.util.TopologyGenerator;
 
 import java.io.IOException;
-import java.util.logging.ConsoleHandler;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.collections15.Factory;
-
 
 import edu.uci.ics.jung.graph.DirectedSparseMultigraph;
 import edu.uci.ics.jung.graph.Graph;
