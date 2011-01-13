@@ -116,10 +116,11 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
 	
-	// I am the targeted component, using waiting strategy insteady of blocking;
+	// I am the targeted component, using waiting strategy instead of blocking;
 	public void onBeingRequestOnDemandWaiting(SimEvent currentEvent){
 //		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
-		this.waitingInsteadOfBlocking = true;
+//		this.waitingInsteadOfBlocking = true;
+		this.approachToFreeness=ApproachToFreeness.WAITING;
 		LOGGER.info("*** Request received to achieve freeness by waiting istead of blocking. Now setting up dynamic dependences from"
 				+ getSimContainer().getHostComponent().getId()
 				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
@@ -130,6 +131,28 @@ public class VersionConsistencyOnDemand extends Algorithm {
 //		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
 		this.onBeingRequestOnDemand(currentEvent,scope,null);
 	}
+	
+	// I am the targeted component, using concurrent versions strategy instead of blocking;
+	public void onBeingRequestOnDemandConcurrentVersions(SimEvent currentEvent){
+//		vCOndemandReqTime = Engine.getDefault().getVirtualTime();
+		this.approachToFreeness=ApproachToFreeness.CONCURVERS;
+		LOGGER.info("*** Request received to achieve freeness by concurrent versions istead of blocking. Now setting up dynamic dependences from"
+				+ getSimContainer().getHostComponent().getId()
+				+ " at VT: "+Engine.getDefault().getVirtualTime() +" ***");
+		this.iAmTheTarget = true;
+		this.collectReqSettingCallBack.callback(currentEvent, null);
+		Component hostComponent = this.getSimContainer().getHostComponent();
+		HashSet<Component> scope = computeAffectedScope(hostComponent, hostComponent.getConf());
+//		allDependingComponentsToWaitForLocalSettingUpDone = new HashSet<Component>(scope); 
+		this.onBeingRequestOnDemand(currentEvent,scope,null);
+	}
+	
+	
+	
+	
+	
+	
+	
 	
 	public void onBeingRequestOnDemand(SimEvent currentEvent, HashSet<Component> scope, StaticEdge ose){
 		LOGGER.info("*** Request received to achieve freeness. Now setting up dynamic dependences from edge "
@@ -866,12 +889,51 @@ public class VersionConsistencyOnDemand extends Algorithm {
 			if((this.dDMngMode==DDMngMode.VC) && (! this.startReconf)){
 				LOGGER.info("Component:" + this.getSimContainer().getHostComponent().getId() 
 						+" start reconfigure after setting up on demand, at VT: " + Engine.getDefault().getVirtualTime());
-				if(this.waitingInsteadOfBlocking){
-					this.startReconfWaitingAfterSettingUpOnDemandReady(currentEvent);
-				}else{
-					this.startReconfAfterSettingUpOnDemandReady(currentEvent);
-				}
+				LOGGER.info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
+						"virtual time "+Engine.getDefault().getVirtualTime());
+				this.startReconf=true;
+				//this.collectReqSettingCallBack.callback(currentEvent, null);
+//				getLOGGER().info(
+//						"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
+//						+" \n *************** current IES : " + this.getSimContainer().getHostComponent().getIES() +
+//						" \n *************** current FPSet : " + FPSet);
+
+				if(this.approachToFreeness==ApproachToFreeness.CONCURVERS){
+					//Let's initialize the servedRids
+					HashSet <String> FSet= new HashSet<String>();
+					HashSet <String> PSet= new HashSet<String>();
+					Component hostComponent = this.getSimContainer().getHostComponent();
+					HashSet <DynamicEdge> IES =hostComponent.getIES();
+					
+					for (DynamicEdge edge :IES){	
+						if (edge instanceof FutureEdge){
+							// we inserted to FSet its RID
+							FSet.add(edge.getRid());
+						}
+						else if(edge instanceof PastEdge){
+							// we inserted to PSet its RID
+							PSet.add(edge.getRid());
+						}					
+					}
+
+					//Create the intersection between FSet and PSet
+					this.servedRids.clear();
+					for (String ridInFSet :FSet){
+						if (PSet.contains(ridInFSet)){
+							this.servedRids.add(ridInFSet);
+						}
+					}
+				}	
+				checkFreeness(currentEvent);
 			}
+//				if(this.waitingInsteadOfBlocking){
+/*				if(this.approachToFreeness==ApproachToFreeness.WAITING){
+					this.startReconfWaitingAfterSettingUpOnDemandReady(currentEvent);
+				}else if (this.approachToFreeness == ApproachToFreeness.BLOCKING) {
+					this.startReconfAfterSettingUpOnDemandReady(currentEvent);
+				}else {
+					assert false:"concurrent versions not implemented yet!";
+				}*/
 		}
 	}
 
@@ -936,7 +998,13 @@ public class VersionConsistencyOnDemand extends Algorithm {
 //	private float VersConsistencyReqTime = -1.0f;
 	private boolean startReconf=false;
 	private HashSet<String> FPSet = new HashSet<String>();
-	private boolean waitingInsteadOfBlocking=false;
+//	private boolean waitingInsteadOfBlocking=false;
+	private ApproachToFreeness approachToFreeness = ApproachToFreeness.BLOCKING;
+	
+	/*
+	 *  Rids of transactions have already being served by me; used when approachToFreeness is CONCURVERS.
+	 */
+	private HashSet<String> servedRids = new HashSet<String>(); 
 
 
 	// for testing purpose. direct working under VC from the beginning, and start to 
@@ -955,7 +1023,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		checkFreeness(currentEvent);
 	}
 	
-	public void startReconfAfterSettingUpOnDemandReady(SimEvent currentEvent){
+/*	public void startReconfAfterSettingUpOnDemandReady(SimEvent currentEvent){
 		LOGGER.info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
 				"virtual time "+Engine.getDefault().getVirtualTime());
 		this.startReconf=true;
@@ -971,7 +1039,8 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		LOGGER.info("************** STARTING RECONFIGURATION OF COMPONENT "+this.getSimContainer().getHostComponent().getId()+" ***************\n " +
 				"virtual time "+Engine.getDefault().getVirtualTime());
 		this.startReconf=true;
-		this.waitingInsteadOfBlocking=true;
+//		this.waitingInsteadOfBlocking=true;
+		assert this.approachToFreeness==ApproachToFreeness.WAITING;
 		//this.collectReqSettingCallBack.callback(currentEvent, null);
 //		getLOGGER().info(
 //				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()
@@ -979,13 +1048,14 @@ public class VersionConsistencyOnDemand extends Algorithm {
 //				" \n *************** current FPSet : " + FPSet);
 		
 		checkFreeness(currentEvent);
-	}
+	}*/
 	
 	@Override
 	public void onInitRootTx(SimEvent currentEvent, SimAppTx simApp,CallBack callBack) {
 		if(this.dDMngMode==DDMngMode.DEFAULT){
 			assert ! startReconf;
-			assert ! waitingInsteadOfBlocking;
+//			assert ! waitingInsteadOfBlocking;
+			assert this.approachToFreeness==ApproachToFreeness.BLOCKING;
 			super.onInitRootTx(currentEvent, simApp, callBack);
 			return;
 		}else if(this.iAmTheTarget && this.dDMngMode == DDMngMode.ONDEMAND){
@@ -1001,7 +1071,9 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		//For both DDMngMode.VC and DDMngMode.ONDEMAND (!iAmTheTarget), we do the same as VersionConsistency but 
 		//with considerations of scope
 		
-		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
+//		if (this.waitingInsteadOfBlocking
+		if (this.approachToFreeness!=ApproachToFreeness.BLOCKING 
+				|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
 			Transaction tx= simApp.getTransaction();
 			//Setting Up local edges
 			Component host= simApp.getHostComponent();
@@ -1026,7 +1098,8 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	public void onToGoBeforeRootInitFirstSubTx(SimEvent currentEvent,  SimAppTx simApp,CallBack callBack) {
 		if(this.dDMngMode==DDMngMode.DEFAULT){
 			assert ! startReconf;
-			assert ! waitingInsteadOfBlocking;
+//			assert ! waitingInsteadOfBlocking;
+			assert this.approachToFreeness==ApproachToFreeness.BLOCKING;
 			super.onToGoBeforeRootInitFirstSubTx(currentEvent, simApp, callBack);
 			return;
 		}
@@ -1272,7 +1345,8 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		
 		if(this.dDMngMode==DDMngMode.DEFAULT){
 			assert ! startReconf;
-			assert ! waitingInsteadOfBlocking;
+//			assert ! waitingInsteadOfBlocking;
+			assert this.approachToFreeness==ApproachToFreeness.BLOCKING;
 			super.onBeingInitSubTx(currentEvent, simApp, callBack);
 			return;
 		}else if (this.dDMngMode==DDMngMode.ONDEMAND){
@@ -1288,7 +1362,9 @@ public class VersionConsistencyOnDemand extends Algorithm {
 		assert this.dDMngMode==DDMngMode.VC;
 		
 		//Reconfiguration Starts: no new sub transactions with new rid accepted
-		if (this.waitingInsteadOfBlocking|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
+//		if (this.waitingInsteadOfBlocking
+		if (this.approachToFreeness!=ApproachToFreeness.BLOCKING
+				|| !this.startReconf || FPSet.contains(simApp.getTransaction().getRootId())){
 				
 			
 			getLOGGER().fine("Before callback "+ currentEvent.getId()+
@@ -1388,7 +1464,8 @@ public class VersionConsistencyOnDemand extends Algorithm {
 	public void onEndingSubTx(SimEvent currentEvent, SimAppTx simApp, CallBack callBack) {
 		if(this.dDMngMode==DDMngMode.DEFAULT){
 			assert ! startReconf;
-			assert ! waitingInsteadOfBlocking;
+//			assert ! waitingInsteadOfBlocking;
+			assert this.approachToFreeness == ApproachToFreeness.BLOCKING;
 			super.onEndingSubTx(currentEvent, simApp, callBack);
 			return;
 		}else if (this.dDMngMode==DDMngMode.ONDEMAND){
@@ -1575,8 +1652,18 @@ public class VersionConsistencyOnDemand extends Algorithm {
 				FPSet.add(ridInFSet);
 			}
 		}
+	
+		
 		//Check
-		if (FPSet.isEmpty()){
+		HashSet<String> badBoys;
+		if (this.approachToFreeness==ApproachToFreeness.CONCURVERS){
+			badBoys = new HashSet<String>(this.servedRids);
+			badBoys.retainAll(this.FPSet); 
+		}else{
+			badBoys = FPSet;
+		}
+		
+		if (badBoys.isEmpty() ) {
 			LOGGER.info("*** Freeness achieved for component "
 					+ this.getSimContainer().getHostComponent().getId()
 					+ " at VT: "+Engine.getDefault().getVirtualTime()
@@ -1585,7 +1672,7 @@ public class VersionConsistencyOnDemand extends Algorithm {
 			
 			//debugging purpose
 			//System.exit(0);
-		}
+		} 
 
 		getLOGGER().info(
 //				"************** Current Local Txs: "+this.getSimContainer().getHostComponent().getLocalTransactions()

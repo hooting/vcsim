@@ -31,7 +31,9 @@ public class ExperimentSetTargetRandomServer {
 	
 	private String id;
 	private String targetComponent;
-	
+	private boolean waitingVC=false;
+//	private boolean concurrentVersions=false;
+
 
 	int vid=1;
 	int eid=1;
@@ -50,7 +52,7 @@ public class ExperimentSetTargetRandomServer {
 	 */
 	public ExperimentSetTargetRandomServer(int nNodes, int nEdges, int runNumber,
 			float messageDelay, float meanArrival, float localProcessingTime,
-			int masterSeed, String id) {
+			int masterSeed, boolean waitingVC, String id) {
 		super();
 		this.nNodes = nNodes;
 		this.nEdges = nEdges;
@@ -59,6 +61,8 @@ public class ExperimentSetTargetRandomServer {
 		this.meanArrival = meanArrival;
 		this.localProcessingTime = localProcessingTime;
 		this.masterSeed = masterSeed;
+		this.waitingVC = waitingVC;
+//		this.concurrentVersions = concurrentVersions;
 		this.id = id;
 //		this.targetComponent=targetComponentId;
 		this.graph=initConfigGraph();
@@ -80,8 +84,11 @@ public class ExperimentSetTargetRandomServer {
 		}
 		float reqTime= this.localProcessingTime *5;
 	
-		fw.write("Target,Seed,ReqTime, quiescenceTime,deltaQT, vcFreenessTime,deltaFT, workWhenFreenessF, workWhenFreenessM, workWhenQuiescenceM, workWhenQuiescenceQ, workWhenRequestF, workWhenRequestM"
-				+ ", workWhenRequestQ, lossWorkByQu, lossWorkByVC\n" );
+		fw.write("Target,Seed,ReqTime, quiescenceTime,deltaQT, vcFreenessTime,deltaFT, concurVersTime, deltaCT, " +
+				"workWhenFreenessF, workWhenFreenessM, " +
+				"workWhenQuiescenceQ, workWhenQuiescenceM, " +
+				"workWhenConcurVersFreenessC, workWhenConcurVersFreenessM, "+ 
+				"workWhenRequestMQFC, lossWorkByQuiescence, lossWorkByVC_Blocking, lossWorkByVC_ConcurVers \n" );
 		for (int i=0;i<runNumber; i++){
 			params.setSeed(seeds[i]);
 			params.reInit();
@@ -92,7 +99,6 @@ public class ExperimentSetTargetRandomServer {
 			this.targetComponent = "C"+chooseTarget(graph);
 			
 			SimNet.reInit();
-			boolean waitingVC=false;
 			//ExperimentV2 exp= new ExperimentV2(this.graph,this.targetComponent,reqTime,waitingVC);
 			ExperimentRecordReplay exp= new ExperimentRecordReplay(this.graph,this.targetComponent,reqTime,waitingVC);
 			exp.run();
@@ -100,8 +106,23 @@ public class ExperimentSetTargetRandomServer {
 
 			float deltaQT=res.quiescenceTime-res.reqTime;
 			float deltaFT=res.vcFreenessTime-res.reqTime;
-			fw.write(targetComponent+","+seeds[i]+","+res.reqTime+","+res.quiescenceTime+","+deltaQT+","+res.vcFreenessTime+","+deltaFT+","+res.workWhenFreenessF+","+res.workWhenFreenessM+","+res.workWhenQuiescenceM+","+res.workWhenQuiescenceQ+
-					","+res.workWhenRequestF+","+res.workWhenRequestM+","+res.workWhenRequestQ+","+res.lossWorkByQu()+","+res.lossWorkByVC()+"\n" );
+			float deltaCT=res.concurVersFreenessTime - res.reqTime;
+			
+			assert Math.abs((res.workWhenRequestM-res.workWhenRequestF)/res.workWhenRequestM) <0.00001; 
+			assert Math.abs((res.workWhenRequestM-res.workWhenRequestQ)/res.workWhenRequestM) <0.00001; 
+			assert Math.abs((res.workWhenRequestM-res.workWhenRequestC)/res.workWhenRequestM) <0.00001; 
+
+			fw.write(targetComponent+","+seeds[i]+","
+					+res.reqTime+","+res.quiescenceTime+","+deltaQT+","
+					+res.vcFreenessTime+","+deltaFT+","
+					+res.concurVersFreenessTime+","+deltaCT+","
+					+res.workWhenFreenessF+","+res.workWhenFreenessM+","
+					+res.workWhenQuiescenceQ+","+res.workWhenQuiescenceM+","
+					+res.workWhenConcurVersFreenessC+","+res.workWhenConcurVersFreenessM+","
+					+res.workWhenRequestM+","
+					+res.lossWorkByQu()+","
+					+res.lossWorkByVC()+","
+					+res.lossWorkByCV()+"\n" );
 			
 		}
 		fw.close();

@@ -14,12 +14,12 @@ public class TimelinessDisruptionTargetRandom {
 		float localProcessingTime=50;
 		float meanArrival=25;
 		//float delay=5;			
-		float[] delays = new float[]{100};
+		float[] delays = new float[]{5};
 		for(int i = 0; i< delays.length;i++){
 			float delay = delays[i];
 			ExperimentSetTargetRandomServer expSet= new ExperimentSetTargetRandomServer(nComponents, nEdges, nRun, 
-					delay,meanArrival, localProcessingTime, masterSeed, 
-					"resultsExperiments/timelinessDisruption/V"+nComponents+"E"+nEdges+"D"+delay+"N"+nRun+"TargetRandomServerNodes");
+					delay,meanArrival, localProcessingTime, masterSeed, false,
+					"resultsExperiments/timelinessDisruption/newexp_V"+nComponents+"E"+nEdges+"D"+delay+"N"+nRun+"TargetRandomServerNodes");
 			try {
 				expSet.run();
 			} catch (IOException e) {

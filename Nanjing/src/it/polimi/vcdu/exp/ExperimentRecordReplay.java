@@ -30,7 +30,7 @@ public class ExperimentRecordReplay {
 	private Result result;	
 	Graph<Number,Number> configGraph;
 	private String targetComponentName;
-	private boolean waitingVC;
+	private boolean waitingVC = false;  // achieve freeness by waiting or blocking? Default: blocking
 	
 	
 	public ExperimentRecordReplay(Graph<Number,Number> configGraph, String targetComponentName,float reqTime,boolean waitingVC){
@@ -39,7 +39,6 @@ public class ExperimentRecordReplay {
 		result=new Result();
 		result.reqTime=reqTime;
 		this.waitingVC=waitingVC;
-		
 	}
 	
 	public void run(){
@@ -48,13 +47,21 @@ public class ExperimentRecordReplay {
 		
 		reInit();
 		expQuiescence(recorder);
+		
 		reInit();
-		//this.expVersConsistency();
-		this.expOnDemandVersConsistency(recorder);
+		this.expOnDemandVersConsistency_Blocking(recorder);
+		
 		reInit();
-		this.expMeasuringQ(recorder);
+		this.expOnDemandVersConsistency_ConcurrentVersions(recorder);
+		
 		reInit();
-		this.expMeasuringF(recorder);
+		this.expMeasuringQuiescence(recorder);
+		
+		reInit();
+		this.expMeasuringODVC_Blocking(recorder);
+
+		reInit();
+		this.expMeasuringODVC_ConcurrentVersions(recorder);
 	}
 	
 	public Result getResult(){
@@ -242,7 +249,98 @@ public class ExperimentRecordReplay {
 		
 	}*/
 	
-	public void expOnDemandVersConsistency(Recorder recorder){
+	private void expMeasuringQuiescence(Recorder recorder) {
+		Configuration conf = new Configuration(configGraph);
+		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
+		Simulator sim = new Simulator(conf, Measuring.class,recorder);
+		SimContainer simContainer = sim.getSimContainer(targetedComponent);
+		
+		try {
+			Object[] content = new Object[1];
+			content[0] = "onFirstMeasurement";
+	
+			Message message = new Message("MeasurementPsuadoMsg", null, null,
+					content);
+			SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
+			reconfReqEvent.setSimObject(simContainer);
+			reconfReqEvent.setSchedulerListener(new MySchedulerListener());
+			ArrayList<Event> events = new ArrayList<Event>();
+	
+			events.add(reconfReqEvent);
+			NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
+					events);
+	
+			Object[] params = new Object[1];
+			params[0] = message;
+			sim.insertProcess(process);
+			sim.insertEvent(reconfReqEvent);
+			reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer,
+					params, result.reqTime);
+			
+			// Now do the second measurement
+			Object[] content2 = new Object[1];
+			content2[0] = "onSecondMeasurement";
+	
+			Message message2 = new Message("MeasurementPsuadoMsg2", null, null,
+					content2);
+			SimEvent reconfReqEvent2 = new SimEvent(null, null, null, null);
+			reconfReqEvent2.setSimObject(simContainer);
+			reconfReqEvent2.setSchedulerListener(new MySchedulerListener());
+			ArrayList<Event> events2 = new ArrayList<Event>();
+	
+			events2.add(reconfReqEvent2);
+			NoDelayProcess process2 = new NoDelayProcess("noDelay", null, null,
+					events2);
+	
+			Object[] params2 = new Object[1];
+			params2[0] = message2;
+			sim.insertProcess(process2);
+			sim.insertEvent(reconfReqEvent2);
+			reconfReqEvent2.notifyWithDelay("dispatchToAlg", simContainer,
+					params2,result.quiescenceTime );
+			
+	
+		} catch (InvalidParamsException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
+		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				float rt = Engine.getDefault().getVirtualTime();
+				assert Math.abs(result.reqTime -rt) < 0.01;
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				result.workWhenRequestM	 = 0;
+				for (Component com:conf.getComponents()){
+					result.workWhenRequestM += com.getTotalWorkingTime();					
+				}
+			}
+			
+		});		
+		simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				Simulator.getDefaultSimulator().setStopSimulation(true);
+				float ft = Engine.getDefault().getVirtualTime();
+				assert Math.abs(result.quiescenceTime -ft) < 0.01;
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				result.workWhenQuiescenceM = 0;
+				for (Component com:conf.getComponents()){
+					result.workWhenQuiescenceM += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		sim.run();
+		
+		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Measurement against Quiescence: \n\t RequestTime: "+ result.reqTime
+				+" total working time when request: "+ result.workWhenRequestM
+				+"\n\t QuiescenceTime: "+result.quiescenceTime + " total working time when Quiescence achieved: "+ result.workWhenQuiescenceM);
+	}
+
+	public void expOnDemandVersConsistency_Blocking(Recorder recorder){
 		Configuration conf = new Configuration(configGraph);
 		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
 		//Simulator sim = new Simulator (conf,VCOnDemand.class);
@@ -323,7 +421,18 @@ public class ExperimentRecordReplay {
 				+"\n\t ReadyTime: "+result.vcFreenessTime + " total working time when ready: "+ result.workWhenFreenessF);					
 		
 	}
-	private void expMeasuringF(Recorder recorder) {
+	
+	
+	
+
+	
+	
+	
+	
+	
+	
+	
+	private void expMeasuringODVC_Blocking(Recorder recorder) {
 		Configuration conf = new Configuration(configGraph);
 		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
 		Simulator sim = new Simulator(conf, Measuring.class,recorder);
@@ -415,7 +524,89 @@ public class ExperimentRecordReplay {
 	};
 
 	
-	private void expMeasuringQ(Recorder recorder) {
+	
+	
+	public void expOnDemandVersConsistency_ConcurrentVersions(Recorder recorder){
+		Configuration conf = new Configuration(configGraph);
+		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
+		//Simulator sim = new Simulator (conf,VCOnDemand.class);
+		Simulator sim = new Simulator (conf,VersionConsistencyOnDemand.class,recorder);
+		SimContainer simContainer= sim.getSimContainer(targetedComponent);
+		
+		try {
+			Object[] content = new Object[1];
+			
+			assert !this.waitingVC; //should not be just waiting VC
+			content[0] = "onBeingRequestOnDemandConcurrentVersions";				
+
+			Message message = new Message("VersConsPseudoMsg", null, null,
+					content);
+			SimEvent reconfReqEvent = new SimEvent(null, null, null, null);
+			reconfReqEvent.setSchedulerListener(new MySchedulerListener());
+			ArrayList<Event> events = new ArrayList<Event>();
+
+			events.add(reconfReqEvent);
+			NoDelayProcess process = new NoDelayProcess("noDelay", null, null,
+					events);
+
+			Object[] params = new Object[1];
+			params[0] = message;
+			sim.insertProcess(process);
+			sim.insertEvent(reconfReqEvent);
+			reconfReqEvent.notifyWithDelay("dispatchToAlg", simContainer,
+					params, this.result.reqTime);
+
+			// the creation of SimEvent will affect global random, so we make a second event to 
+			// help the measuring (who will new two events before sim run) to reproduce the exact
+			// behavior. Note that we need two, another ome is within notifyWithDelay
+			@SuppressWarnings("unused")
+			SimEvent noUsereconfReqEvent1 = new SimEvent(null, null, null, null);
+			@SuppressWarnings("unused")
+			SimEvent noUsereconfReqEvent2 = new SimEvent(null, null, null, null);
+
+
+		} catch (InvalidParamsException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		
+		simContainer.getAlgorithm().setCollectReqSettingCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				float requestTime = Engine.getDefault().getVirtualTime();
+				assert Math.abs(result.reqTime -requestTime) < 0.01;
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				result.workWhenRequestC = 0f;
+				for (Component com:conf.getComponents()){
+					result.workWhenRequestC += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		simContainer.getAlgorithm().setCollectResultCallBack(new CallBack(simContainer){
+			@Override
+			public void callback(SimEvent currentEvent, Object[] parameters) {
+				Simulator.getDefaultSimulator().setStopSimulation(true);
+				result.concurVersFreenessTime = Engine.getDefault().getVirtualTime();
+				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
+				result.workWhenConcurVersFreenessC = 0f;
+				for (Component com:conf.getComponents()){
+					result.workWhenConcurVersFreenessC += com.getTotalWorkingTime();
+				}
+			}
+			
+		});		
+		sim.run();
+		
+		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Version Consistency - concurrent versions \n\t RequestTime: "+ result.reqTime
+				+" total working time when request: "+ result.workWhenRequestC
+				+"\n\t ReadyTime: "+result.concurVersFreenessTime + " total working time when ready: "+ result.workWhenConcurVersFreenessC);					
+		
+	}
+	
+	
+	private void expMeasuringODVC_ConcurrentVersions(Recorder recorder) {
 		Configuration conf = new Configuration(configGraph);
 		Component targetedComponent = conf.getComponentFromId(this.targetComponentName);
 		Simulator sim = new Simulator(conf, Measuring.class,recorder);
@@ -463,8 +654,7 @@ public class ExperimentRecordReplay {
 			sim.insertProcess(process2);
 			sim.insertEvent(reconfReqEvent2);
 			reconfReqEvent2.notifyWithDelay("dispatchToAlg", simContainer,
-					params2,result.quiescenceTime );
-			
+					params2, result.concurVersFreenessTime);
 
 		} catch (InvalidParamsException e) {
 			// TODO Auto-generated catch block
@@ -478,9 +668,9 @@ public class ExperimentRecordReplay {
 				float rt = Engine.getDefault().getVirtualTime();
 				assert Math.abs(result.reqTime -rt) < 0.01;
 				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
-				result.workWhenRequestM	 = 0;
+				result.workWhenRequestM = 0;
 				for (Component com:conf.getComponents()){
-					result.workWhenRequestM += com.getTotalWorkingTime();					
+					result.workWhenRequestM += com.getTotalWorkingTime();
 				}
 			}
 			
@@ -490,22 +680,30 @@ public class ExperimentRecordReplay {
 			public void callback(SimEvent currentEvent, Object[] parameters) {
 				Simulator.getDefaultSimulator().setStopSimulation(true);
 				float ft = Engine.getDefault().getVirtualTime();
-				assert Math.abs(result.quiescenceTime -ft) < 0.01;
+				assert Math.abs(result.concurVersFreenessTime -ft) < 0.01;
 				Configuration conf = currentEvent.getSimObject().getHostComponent().getConf();
-				result.workWhenQuiescenceM = 0;
+				result.workWhenConcurVersFreenessM = 0;
 				for (Component com:conf.getComponents()){
-					result.workWhenQuiescenceM += com.getTotalWorkingTime();
+					result.workWhenConcurVersFreenessM += com.getTotalWorkingTime();
 				}
 			}
 			
 		});		
 		sim.run();
 		
-		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Measurement against Quiescence: \n\t RequestTime: "+ result.reqTime
+		Logger.getLogger("it.polimi.vcdu").info("*** Experiment with Measurement against Version Consistency concurrent versions: \n\t RequestTime: "+ result.reqTime
 				+" total working time when request: "+ result.workWhenRequestM
-				+"\n\t QuiescenceTime: "+result.quiescenceTime + " total working time when Quiescence achieved: "+ result.workWhenQuiescenceM);
+				+"\n\t concurVersFreenessTime: "+result.concurVersFreenessTime + " total working time : "+ result.workWhenConcurVersFreenessM);
 	};
 
+	
+	
+	
+	
+	
+	
+	
+	
 	
 	
 	
@@ -513,19 +711,42 @@ public class ExperimentRecordReplay {
 		public float reqTime;
 		public float quiescenceTime;
 		public float vcFreenessTime;
-		//measuring
-		public float workWhenRequestM;
-		//quiescence
-		public float workWhenRequestQ;
-		//freeness
+		public float concurVersFreenessTime; // using concurrent versions; when the old component is free;
+		
+		/**
+		 * //measuring  //measure the work has been done when update request is received;
+		 */
+		public float workWhenRequestM; 
+		
+		/**
+		 * Using quiescence approach; measure the work has been done when update request is received.
+		 * When on-demand approach is used, workWhenRequestQ should be the same as workWhenRequestM
+		 * because no disturbance is introduced before the update request is received.  
+		 */
+		public float workWhenRequestQ; 
+		
+		/**
+		 * Using VC Free approach;  measure the work has been done when update request is received.
+		 * When on-demand approach is used, workWhenRequestF should be the same as workWhenRequestM
+		 * because no disturbance is introduced before the update request is received.  
+		 */
 		public float workWhenRequestF;
 		
-		public float workWhenQuiescenceM;
+		/**
+		 * Using VC concurrent-version approach. measure the work has been done when update request is received.
+		 * When on-demand approach is used, workWhenRequestC should be the same as workWhenRequestM
+		 * because no disturbance is introduced before the update request is received.  
+		 */
+		public float workWhenRequestC;
 		
+		public float workWhenQuiescenceM; 
 		public float workWhenQuiescenceQ;
 		
 		public float workWhenFreenessM;
 		public float workWhenFreenessF;
+		
+		public float workWhenConcurVersFreenessM;
+		public float workWhenConcurVersFreenessC;
 		
 		public float lossWorkByVC(){
 			return (this.workWhenFreenessM-this.workWhenRequestM)-(this.workWhenFreenessF-this.workWhenRequestF);
@@ -533,6 +754,10 @@ public class ExperimentRecordReplay {
 		
 		public float lossWorkByQu(){
 			return (this.workWhenQuiescenceM-this.workWhenRequestM)-(this.workWhenQuiescenceQ-this.workWhenRequestQ);
+		}
+		
+		public float lossWorkByCV(){
+			return (this.workWhenConcurVersFreenessM-this.workWhenRequestM) - (this.workWhenConcurVersFreenessC-this.workWhenRequestC);
 		}
 
 		/* (non-Javadoc)
@@ -546,9 +771,12 @@ public class ExperimentRecordReplay {
 					+ ", workWhenFreenessM=" + workWhenFreenessM
 					+ ", workWhenQuiescenceM=" + workWhenQuiescenceM
 					+ ", workWhenQuiescenceQ=" + workWhenQuiescenceQ
+					+ ", workWhenConcurVersFreenessM=" + workWhenConcurVersFreenessM
+					+ ", workWhenConcurVersFreenessC=" + workWhenConcurVersFreenessC
 					+ ", workWhenRequestF=" + workWhenRequestF
 					+ ", workWhenRequestM=" + workWhenRequestM
-					+ ", workWhenRequestQ=" + workWhenRequestQ + "]";
+					+ ", workWhenRequestQ=" + workWhenRequestQ 
+					+ ", workWhenRequestC=" + workWhenRequestC + "]";
 		}
 		
 	
