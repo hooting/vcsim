@@ -14,7 +14,7 @@ public class TimelinessDisruptionTargetRandom {
 		float localProcessingTime=50;
 		float meanArrival=25;
 		//float delay=5;			
-		float[] delays = new float[]{5};
+		float[] delays = new float[]{0,1,10,25,50,100};
 		for(int i = 0; i< delays.length;i++){
 			float delay = delays[i];
 			ExperimentSetTargetRandomServer expSet= new ExperimentSetTargetRandomServer(nComponents, nEdges, nRun, 
