@@ -53,14 +53,18 @@ public class WaitingBlocking {
 		int nNodes = 16;
 		int nEdges = 2;
 
-//		int nNodes = 2;
-//		int nEdges = 1;
+
 		Graph<Number,Number> configGraph = initConfigGraph(nNodes, nEdges);
 
 		ControlParameters.getCurrentParameters().setNetworkDelay(5);
-		ControlParameters.getCurrentParameters().setMeanArrival(400);
+		
+		//By choosing different intervals as for the arrival of root transactions, we can simulate different levels of system workloads. 
+		ControlParameters.getCurrentParameters().setMeanArrival(1600); //choose one of 1600, 800, 700, 600, 500, 400, 350, 300, 250
+		
 		RequestTime = 2500f;
-		String targetString="C2";
+		String targetString="C2"; //Fix the target component.
+		
+		
 		int [] seeds= new int[100];
 		Random rnd = ControlParameters.getCurrentParameters().getRandomObj();
 		for (int i=0;i<100;i++){
@@ -95,8 +99,8 @@ public class WaitingBlocking {
 			System.out.print(waitingTimes[i]+"\t");
 			totalWait+=waitingTimes[i];
 		}
-		System.out.println("\nblocking average"+totalBlocking/100);
-		System.out.println("\nwaiting average" +totalWait/100);
+		System.out.println("\nAverage time to freeness by blocking: "+totalBlocking/100);
+		System.out.println("\nAverage time to freeness by waiting: " +totalWait/100);
 		
 	}
 	private static void expVCOD(Graph<Number, Number> configGraph,
