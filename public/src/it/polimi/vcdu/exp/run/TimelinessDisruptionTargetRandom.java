@@ -6,8 +6,8 @@ import java.io.IOException;
 
 /**
  * We use this program to evaluate:
- *    1. the impact of the scale of the system. In this case we fix the network delay and vary in the number of components. 
- *    2. the impact of the network latency. In this case we fix the number of components and vary in the value of network delay.
+ *    1. the impact of the scale of the system. In this case we fix the network delay and vary the number of components. 
+ *    2. the impact of the network latency. In this case we fix the number of components and vary the value of network delay.
  * @author xxm
  *
  */
