@@ -1,0 +1,119 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{times}
+\usepackage[affil-it]{authblk}
+
+\hoffset -.5in \voffset -1 in \textheight 9 in \textwidth 6 in
+
+\newcommand{\nb}[3]{
+    \fcolorbox{black}{#3}{\bfseries\sffamily\scriptsize#1}
+    {\sf\small$\blacktriangleright$\textit{#2}$\blacktriangleleft$}
+   }
+\newcommand\lb[1]{\nb{LB}{#1}{yellow}}
+
+\title{Simulator of ``Version-consistent Dynamic Reconfiguration of Component-based Distributed Systems''}		
+
+\author[1,2]{Xiaoxing Ma}
+\author[1]{Luciano Baresi}
+\author[1]{Carlo Ghezzi}
+\author[1]{Valerio Panzica La Manna}
+\author[2]{Jian Lu}
+\affil[1]{Dipartimento di Elettronica e Informazione,
+Politecnico di Milano, Italy}
+\affil[2]{State Key Laboratory for Novel Software Technology,
+Nanjing University, China
+\newline \textsl{\{ma,baresi,ghezzi,panzica\}@elet.polimi.it,
+lj@nju.edu.cn}}		
+\date{June 7, 2011}				
+
+\begin{document}
+\maketitle
+
+\section{How to download and compile the simulator}
+
+To download and run the simulator, one should:
+
+\begin{itemize}	
+\item Be sure JDK 1.6, Eclipse and Subclipse (Eclipse SVN plugin) are properly installed
+\item Start Eclipse and switch to $SVN Repository Exploring$ perspective
+\item Add a new location with the following URL: \url{http://vcsim.googlecode.com/svn}
+\item Check out folder \texttt{public} as a project in the workspace (project name: \texttt{VCSim2}).
+\item Switch to the $Java$ perspective
+\item If needed, include all jar files in directory “lib” in the buildpath/classpath
+\end{itemize}
+
+One should read the paper in directory \url{doc} to understand the aim of the simulation. S/he should also set the options of the JVM as follows: \texttt{-Xms1000m -Xmx1000m} to allocate enough heap memory for the simulator. 
+
+\section{Timeliness and Disruption}
+
+To evaluate the timeliness and disruption of our approach with respect to systems of different sizes and different network
+latencies, one must configure program \url{TimelinessDisruptionTargetRandom.java} (in package \url{it.polimi.vcdu.exp.run}) with
+the number of components $Cnm$ and network delay $Dly$ for the experiment. Different runs with the same number of components,
+but with different delays, allow one to evaluate the impact of network latency; the same latency and varying sizes help study
+the impact of the system's size. Each run creates a file \url{newexp_V[Cnm]E2D[Dly]N100TargetRandomServerNodes.csv}, under
+directory \url{resultsExperiments/timelinessDisruption/}, to store produced results.
+
+Each execution comprises 7 steps (see method \texttt{ExperimentRecordReplay.run()}): 
+
+\begin{enumerate}
+\item \texttt{expRecord} records the randomly-generated scenario, including the injection of root transactions (both when and to
+which component it is injected) and the progress of each transaction (when it initiates its sub-transactions and on which
+neighbor components).
+\item \texttt{expQuiescence} runs the recorded scenario by using the quiescence approach. Note that \texttt{ReqTime} is the time
+instance at which a reconfiguration request is received, \texttt{workRequestMQFC} states the work done at this time,
+\texttt{quiescenceTime} is the time instant at which the target component is quiescent and \texttt{workQuiescenceQ} says the
+work done at this time.
+\item \texttt{expOnDemandVersConsistency\_Blocking} runs the recorded scenario by using the on-demand version consistency with
+the blocking strategy for freeness. Note that \texttt{ReqTime} is the time instance at which a reconfiguration request is
+received, \texttt{workRequestMQFC} states the work done at this time (it should be the same as in step 2 above because the
+set-up is on-demand), \texttt{vcFreenessTime} is the time instant at which the target component is quiescent and
+\texttt{workFreenessF} says the work done at this time.
+\item \texttt{expOnDemandVersConsistency\_ConcurrentVersions} runs the recorded scenario by using the on-demand version
+consistency with the concurrent versions strategy for freeness. Note that \texttt{ReqTime} is the time instance at which a
+reconfiguration request is received, \texttt{workRequestMQ\-FC} states the work done at this time (it should be the same as in
+step 2 above because the set-up is on-demand), \texttt{concurVersTime} is the time instant at which the target component is free
+and \texttt{workConcurVersFreenessC} says the work done at this time.
+\item \texttt{expMeasuringQuiescence} runs the recorded scenario and does not update the component. It measures
+\texttt{workQuiescenceM}, that is, the amount of work it would have done at \texttt{quiescence\-Time} if there had been no
+dynamic updates.
+\item \texttt{expMeasuringODVC\_Blocking} runs the recorded scenario and does not update the component. It measures
+\texttt{workFreenessM}, that is, the amount of work it would have done at \texttt{vcFrenessTi\-me} if there had been
+no dynamic updates.
+\item \texttt{expMeasuringODVC\_ConcurrentVersions} runs the recorded scenario and does not update the component. It measures
+\texttt{workConcurVersFreenessM}, that is, the amount of work it would have done at \texttt{concurVersTime} if there had
+been no dynamic updates.
+\end{enumerate}
+
+The simulator is configured to run each experiment 100 times. With these values we can compute the timeliness of the different approaches, that is, quiescence, version consistency with the blocking strategy, and version consistency with concurrent versions:
+\begin{equation}
+       delta_{quiescence} = quiescenceTime - ReqTime
+\end{equation}
+\begin{equation}
+       delta_{blocking-strategy} = vcFreenessTime - ReqTime
+\end{equation}
+\begin{equation}
+       delta_{concurrent-versions} = concurVersTime - ReqTime
+\end{equation}
+and their corresponding disruptions:
+\begin{equation}
+lostWork_{quiescence} = workQuiescenceM - workQuiescenceQ 
+\end{equation}
+\begin{equation}
+lostWork_{blocking-strategy} = workFreenessM - workFreenessF
+\end{equation}
+\begin{equation}
+lostWork_{concurrent-versions} = workConcurVersFreenessM - workConcurVersFreenessC
+\end{equation}
+
+\section{Freeness}
+
+To compare the BF strategy to freeness against the WF strategy under different workloads of the system, one must run
+\url{WaitingBlocking.java} (in package \url{it.polimi.vcdu.exp.run}). S/he can vary the mean arrival intervals of root
+transactions: suggested values are between 1600 and 250 for a 16-node system with mean local processing time set to 50. The
+program prints produced results directly on the console.
+
+\end{document}
